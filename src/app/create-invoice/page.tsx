@@ -22,20 +22,25 @@ export default function CreateInvoicePage() {
   const [duplicateInvoices, setDuplicateInvoices] = useState<any[]>([]);
 
   // Handler to receive invoices and share/gst from InvoiceForm
-  const handleFormChange = (data: any[]) => {
+  const handleFormChange = (data: any[], isNewUpload: boolean = false) => {
     setInvoices(data || []);
     setSelectedIdx(0);
-    setShowPreview(false); // Reset preview on new upload
-    setHasUploaded(false); // Reset upload state for new data
-    setBackendInvoices([]); // Clear backend invoices
-    setDuplicateInvoices([]); // Clear duplicate invoices
+    
+    // Only reset preview and upload state if this is a new file upload
+    if (isNewUpload) {
+      setShowPreview(false);
+      setHasUploaded(false);
+      setBackendInvoices([]);
+      setDuplicateInvoices([]);
+      setSelectedInvoices([]);
+      setSelectAll(false);
+    }
+    
     if (data && data.length) {
       setShare(data[0].share ?? 45);
       setGstType(data[0].gstType ?? 'CGST/SGST');
       setGstRate(data[0].gstRate ?? 18);
     }
-    setSelectedInvoices([]);
-    setSelectAll(false);
   };
 
   // New: Upload Excel and invoice data to backend

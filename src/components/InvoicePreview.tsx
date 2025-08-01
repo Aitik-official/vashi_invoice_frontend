@@ -98,9 +98,12 @@ interface InvoiceData {
   screenFormat?: string;
   reels?: string;
   week?: string;
+  releaseWeek?: string;
   cinemaWeek?: string;
   screeningFrom?: string;
   screeningTo?: string;
+  screeningDateFrom?: string;
+  screeningDateTo?: string;
   hsnSacCode?: string;
   description?: string;
   distributionPercent?: string;
@@ -156,9 +159,12 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
   const language = data.language ?? "MALAYALAM";
   const screenFormat = data.screenFormat ?? "1";
   const week = data.week ?? "1";
+  const releaseWeek = data.releaseWeek ?? week;
   const cinemaWeek = data.cinemaWeek ?? "1";
   const screeningFrom = data.screeningFrom ?? "2025-05-23";
   const screeningTo = data.screeningTo ?? "2025-05-29";
+  const screeningDateFrom = data.screeningDateFrom ?? screeningFrom;
+  const screeningDateTo = data.screeningDateTo ?? screeningTo;
   const hsnSacCode = data.hsnSacCode ?? "997332";
   const description = data.description ?? "Theatrical Exhibition Rights";
   const distributionPercent = safeNumber(data.share ?? data.distributionPercent ?? 45);
@@ -392,7 +398,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
               </div>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                 <span style={{ minWidth: 110 }}>Release Week</span>
-                <span style={{ fontWeight: 700, marginLeft: 16 }}>{week}</span>
+                <span style={{ fontWeight: 700, marginLeft: 16 }}>{releaseWeek || week}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                 <span style={{ minWidth: 110 }}>Cinema Week</span>
@@ -400,8 +406,8 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
               </div>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                 <span style={{ minWidth: 110 }}>Screening Date</span>
-                <span style={{ marginLeft: 16 }}>From <span style={{ fontWeight: 700 }}>{formatDate(screeningFrom) || '-'}</span></span>
-                <span style={{ marginLeft: 16 }}>To <span style={{ fontWeight: 700 }}>{formatDate(screeningTo) || '-'}</span></span>
+                <span style={{ marginLeft: 16 }}>From <span style={{ fontWeight: 700 }}>{formatDate(screeningDateFrom || screeningFrom) || '-'}</span></span>
+                <span style={{ marginLeft: 16 }}>To <span style={{ fontWeight: 700 }}>{formatDate(screeningDateTo || screeningTo) || '-'}</span></span>
               </div>
             </div>
           </div>

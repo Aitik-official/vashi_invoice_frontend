@@ -106,14 +106,20 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
   // Filtered data based on search and filter
   const filteredInvoices = invoices.filter(inv => {
     const clientName = inv.data?.clientName || inv.clientName || '';
-    const invoiceNo = inv.data?.invoiceNo || inv.invoiceNo || '';
+    const invoiceNo = inv.data?.invoiceNo || inv.invoiceNo || inv.invoiceId || '';
+    const centre = inv.data?.centre || '';
+    const placeOfService = inv.data?.placeOfService || '';
+    const businessTerritory = inv.data?.businessTerritory || '';
     const invoiceDate = inv.data?.invoiceDate || inv.invoiceDate || '';
     const createdAt = inv.createdAt || '';
     
-    // Search filter
+    // Search filter - now includes all table parameters
     const matchesSearch = (
       clientName.toLowerCase().includes(search.toLowerCase()) ||
-      invoiceNo.toLowerCase().includes(search.toLowerCase())
+      invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
+      centre.toLowerCase().includes(search.toLowerCase()) ||
+      placeOfService.toLowerCase().includes(search.toLowerCase()) ||
+      businessTerritory.toLowerCase().includes(search.toLowerCase())
     );
     
     if (!matchesSearch) return false;
@@ -150,11 +156,14 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
   });
 
   // Get invoice data for InvoicePreview
-  const getInvoiceData = (inv: any) => ({
-    ...(inv.data || {}),
-    invoiceId: inv.invoiceId, // always include backend id for preview
-    invoiceNo: inv.invoiceNo || inv.invoiceId // Use invoiceNo from backend or fallback to invoiceId
-  });
+  const getInvoiceData = (inv: any) => {
+    if (!inv) return {};
+    return {
+      ...(inv.data || {}),
+      invoiceId: inv.invoiceId, // always include backend id for preview
+      invoiceNo: inv.invoiceNo || inv.invoiceId // Use invoiceNo from backend or fallback to invoiceId
+    };
+  };
 
   // Save handler for EditPreview (update invoice in DB)
   const handleSaveEdit = async (updated: any) => {
@@ -189,16 +198,20 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
       if (!target.closest('.filter-dropdown')) {
         setShowFilter(false);
       }
+      // Close actions dropdown when clicking outside
+      if (!target.closest('.actions-dropdown')) {
+        setSelectedInvoice(null);
+      }
     };
 
-    if (showFilter) {
+    if (showFilter || selectedInvoice) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showFilter]);
+  }, [showFilter, selectedInvoice]);
 
   // Add a download handler for PDF
   const handleDownloadPDF = async (inv: any) => {
@@ -251,11 +264,6 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
           <img src="/inovice_formatting/logo_wbg.png" alt="Firm Logo" className="h-full w-auto mr-4 drop-shadow" style={{ maxHeight: 72 }} />
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/create-invoice">
-            <button className="bg-white hover:bg-orange-100 text-orange-600 font-bold px-7 py-2 rounded-lg transition shadow-lg border border-orange-200 text-lg">
-              Create Invoice
-            </button>
-          </Link>
           {onLogout && (
             <button
               className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-7 py-2 rounded-lg transition shadow-lg border border-orange-200 text-lg"
@@ -270,9 +278,23 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
 
       {/* Main Content */}
       <div className="w-full max-w-[1600px] mx-auto px-2 py-10 flex-1 flex flex-col">
-        <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-1 tracking-tight">Hello User</h1>
-          <p className="text-gray-500 text-lg">View and manage your invoices below.</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-extrabold text-gray-900 mb-1 tracking-tight">Hello User</h1>
+            <p className="text-gray-500 text-lg">View and manage your invoices below.</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/create-invoice">
+              <button className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-7 py-3 rounded-lg transition shadow-lg border border-orange-200 text-lg">
+                Create Invoice
+              </button>
+            </Link>
+            <Link href="/reports">
+              <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-7 py-3 rounded-lg transition shadow-lg border border-blue-200 text-lg">
+                Reports
+              </button>
+            </Link>
+          </div>
         </div>
 
         {/* Search Bar + Filter Button */}
@@ -328,20 +350,24 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
         <div className="bg-white rounded-2xl shadow-2xl border border-orange-100 flex-1 w-full">
           <table className="w-full text-left text-lg whitespace-nowrap table-fixed" style={{ tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '28%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '10%' }} />
             </colgroup>
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-orange-200 bg-gradient-to-r from-orange-50 to-white">
                 <th className="px-2 py-4 font-bold text-gray-800">Sr No</th>
                 <th className="px-2 py-4 font-bold text-gray-800">Invoice No</th>
                 <th className="px-2 py-4 font-bold text-gray-800">Client Name</th>
+                <th className="px-2 py-4 font-bold text-gray-800">Centre Name</th>
+                <th className="px-2 py-4 font-bold text-gray-800">Location</th>
+                <th className="px-2 py-4 font-bold text-gray-800">Circuit</th>
                 <th className="px-2 py-4 font-bold text-gray-800">Invoice Date</th>
-                <th className="px-2 py-4 font-bold text-gray-800">View Details</th>
                 <th className="px-2 py-4 font-bold text-gray-800">Actions</th>
               </tr>
             </thead>
@@ -349,53 +375,104 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
           <div className="w-full" style={{ maxHeight: 320, overflowY: 'auto' }}>
             <table className="w-full text-left text-lg whitespace-nowrap table-fixed" style={{ tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '28%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '16%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '10%' }} />
               </colgroup>
               <tbody>
-                {filteredInvoices.map((inv, idx) => (
-                  <tr key={inv._id} className="border-b border-orange-100 hover:bg-orange-50 transition group">
-                    <td className="px-2 py-4 text-gray-700 font-semibold">{idx + 1}</td>
-                    <td className="px-2 py-4 text-gray-700 font-semibold">{inv.invoiceId}</td>
-                    <td
-                      className="px-2 py-4 text-gray-700 font-semibold truncate max-w-[220px]"
-                      title={inv.data?.clientName || inv.clientName}
-                    >
-                      {inv.data?.clientName || inv.clientName}
-                    </td>
-                    <td className="px-2 py-4 text-gray-600 font-semibold">{inv.data?.invoiceDate || inv.invoiceDate}</td>
+                {filteredInvoices.map((inv, idx) => {
+                  if (!inv) return null; // Skip null invoices
+                  return (
+                    <tr key={inv._id} className="border-b border-orange-100 hover:bg-orange-50 transition group">
+                      <td className="px-2 py-4 text-gray-700 font-semibold">{idx + 1}</td>
+                      <td className="px-2 py-4 text-gray-700 font-semibold">{inv.invoiceId}</td>
+                      <td
+                        className="px-2 py-4 text-gray-700 font-semibold truncate"
+                        title={inv.data?.clientName || inv.clientName}
+                      >
+                        {inv.data?.clientName || inv.clientName}
+                      </td>
+                      <td
+                        className="px-2 py-4 text-gray-700 font-semibold truncate"
+                        title={inv.data?.centre || ''}
+                      >
+                        {inv.data?.centre || '-'}
+                      </td>
+                      <td
+                        className="px-2 py-4 text-gray-700 font-semibold truncate"
+                        title={inv.data?.placeOfService || ''}
+                      >
+                        {inv.data?.placeOfService || '-'}
+                      </td>
+                      <td
+                        className="px-2 py-4 text-gray-700 font-semibold truncate"
+                        title={inv.data?.businessTerritory || ''}
+                      >
+                        {inv.data?.businessTerritory || '-'}
+                      </td>
+                      <td className="px-2 py-4 text-gray-600 font-semibold">{inv.data?.invoiceDate || inv.invoiceDate}</td>
                     <td className="px-2 py-4">
-                      <div className="flex gap-4">
-                        {/* Eye Icon */}
-                        <button title="View Invoice" className="text-gray-700 hover:text-orange-600 transition" onClick={() => { setSelectedInvoice(inv); setShowPreview(true); }}>
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6 opacity-90">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-7.5 9.75-7.5 9.75 7.5 9.75 7.5-3.75 7.5-9.75 7.5S2.25 12 2.25 12z" />
-                            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2.5" fill="none" />
+                      <div className="relative actions-dropdown">
+                        <button
+                          className="text-gray-700 hover:text-orange-600 transition p-1"
+                          onClick={() => setSelectedInvoice(inv)}
+                          title="Actions"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
                           </svg>
                         </button>
-                        {/* Pencil Icon */}
-                        <button title="Edit Invoice" className="text-gray-700 hover:text-orange-600 transition" onClick={() => { setEditInvoice(inv); setShowEdit(true); }}>
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6 opacity-90">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 3.487a2.25 2.25 0 1 1 3.182 3.182L7.5 19.213l-4.182.545.545-4.182 12.999-12.09z" />
-                          </svg>
-                        </button>
-                        {/* Dustbin Icon */}
-                        <button title="Delete Invoice" className="text-gray-700 hover:text-orange-600 transition" onClick={() => handleDelete(inv)}>
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6 opacity-90">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 7.5V6.75A2.25 2.25 0 018.25 4.5h7.5A2.25 2.25 0 0118 6.75V7.5M3.75 7.5h16.5M19.5 7.5v10.125A2.625 2.625 0 0116.875 20.25H7.125A2.625 2.625 0 014.5 17.625V7.5m3 0v9m4.5-9v9m4.5-9v9" />
-                          </svg>
-                        </button>
+                        {selectedInvoice?._id === inv._id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white border border-orange-200 rounded-lg shadow-lg z-20">
+                            <button
+                              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-orange-50 flex items-center gap-2"
+                              onClick={() => { setSelectedInvoice(inv); setShowPreview(true); }}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              View
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-orange-50 flex items-center gap-2"
+                              onClick={() => { setEditInvoice(inv); setShowEdit(true); }}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-orange-50 flex items-center gap-2"
+                              onClick={() => handleDownloadPDF(inv)}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              onClick={() => handleDelete(inv)}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
-                    <td className="px-2 py-4">
-                      <button className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2 rounded-lg transition shadow-md text-base focus:outline-none focus:ring-2 focus:ring-orange-400" onClick={() => handleDownloadPDF(inv)}>Download Invoice</button>
-                    </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>
