@@ -232,8 +232,28 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
     const existingDataMap = new Map();
     originalRows.forEach(row => {
       if (row.date) {
-        // Normalize date format for comparison
-        const normalizedDate = row.date.replace(/\//g, '-');
+        // Normalize date format for comparison - handle multiple formats
+        let normalizedDate = row.date;
+        
+        // Handle DD/MM/YYYY format
+        if (normalizedDate.includes('/')) {
+          const parts = normalizedDate.split('/');
+          if (parts.length === 3) {
+            normalizedDate = `${parts[0]}-${parts[1]}-${parts[2]}`;
+          }
+        }
+        
+        // Handle DD-MM-YYYY format (already correct)
+        if (normalizedDate.includes('-') && normalizedDate.split('-').length === 3) {
+          // Keep as is
+        }
+        
+        // Handle YYYY-MM-DD format
+        if (normalizedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const parts = normalizedDate.split('-');
+          normalizedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        
         existingDataMap.set(normalizedDate, row);
       }
     });
@@ -488,7 +508,7 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
       
       // Use html2canvas with optimized settings for minimum file size
       const canvas = await html2canvas(hiddenDiv, { 
-        scale: 1.5, // Reduced from 2 to 1.5 for smaller file size
+        scale: 1.2, // Reduced scale to make content smaller and fit better
         backgroundColor: '#fff',
         useCORS: true,
         allowTaint: true,
@@ -527,12 +547,29 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
         compress: true // Enable PDF compression
       });
       const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = Math.min(700, pageWidth - 60); // Slightly smaller width
+      
+      // Calculate dimensions to fit content properly with margins
+      const pdfWidth = Math.min(650, pageWidth - 80); // Smaller width with more margin
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      const x = (pageWidth - pdfWidth) / 2;
-      const y = 30; // Reduced top margin
-      pdf.addImage(imgData, "JPEG", x, y, pdfWidth, pdfHeight, undefined, 'FAST'); // Use FAST compression
+      
+      // Check if content fits on one page, if not, scale it down
+      let finalPdfWidth = pdfWidth;
+      let finalPdfHeight = pdfHeight;
+      let x = (pageWidth - finalPdfWidth) / 2;
+      let y = 50; // Increased top margin
+      
+      if (pdfHeight > pageHeight - 100) {
+        // Content is too tall, scale it down to fit
+        const scale = (pageHeight - 100) / pdfHeight;
+        finalPdfHeight = pageHeight - 100;
+        finalPdfWidth = pdfWidth * scale;
+        x = (pageWidth - finalPdfWidth) / 2;
+        y = 50; // Keep top margin
+      }
+      
+      pdf.addImage(imgData, "JPEG", x, y, finalPdfWidth, finalPdfHeight, undefined, 'FAST'); // Use FAST compression
       const filename = exactInvoiceNo === '-' ? `Invoice_${Date.now()}.pdf` : `Invoice_${exactInvoiceNo}.pdf`;
       pdf.save(filename);
       
@@ -567,7 +604,7 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
             <img src="/inovice_formatting/1stfflogo.jpg" alt="Logo" style={{ height: '100%', width: '100%', objectFit: 'contain', margin: 0, padding: 0 }} />
           </div>
           <div className="flex-1 flex flex-col items-end justify-center pr-8" style={{ color: '#000', textAlign: 'right', fontFamily: 'Arial, Helvetica, sans-serif', height: '100%', paddingTop: 8, paddingBottom: 8, justifyContent: 'center' }}>
-            <div className="font-bold" style={{ fontSize: 20, letterSpacing: 1, lineHeight: 1.1 }}>FIRST FILM STUDIOS LLP</div>
+            <div className="font-bold" style={{ fontSize: 20, letterSpacing: 1, lineHeight: 1.1, marginBottom: 8 }}>FIRST FILM STUDIOS LLP</div>
             <div style={{ fontSize: 13, lineHeight: 1.1 }}>26-104, RIDDHI SIDHI, CHS, CSR COMPLEX, OLD MHADA,</div>
             <div style={{ fontSize: 13, lineHeight: 1.1 }}>KANDIVALI WEST, MUMBAI - 400067, MAHARASHTRA</div>
             <div style={{ fontSize: 13, lineHeight: 1.1 }}>info@firstfilmstudios.com</div>

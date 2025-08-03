@@ -426,13 +426,30 @@ export default function CreateInvoicePage() {
         compress: true
       });
       const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
-      const pdfWidth = Math.min(650, pageWidth - 50); // Smaller width for ZIP
+      
+      // Calculate dimensions to fit content properly with margins
+      const pdfWidth = Math.min(600, pageWidth - 80); // Smaller width with more margin for ZIP
       const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-      const x = (pageWidth - pdfWidth) / 2;
-      const y = 25; // Reduced top margin
-      pdf.addImage(imgData, "JPEG", x, y, pdfWidth, pdfHeight, undefined, 'FAST');
+      
+      // Check if content fits on one page, if not, scale it down
+      let finalPdfWidth = pdfWidth;
+      let finalPdfHeight = pdfHeight;
+      let x = (pageWidth - finalPdfWidth) / 2;
+      let y = 50; // Increased top margin
+      
+      if (pdfHeight > pageHeight - 100) {
+        // Content is too tall, scale it down to fit
+        const scale = (pageHeight - 100) / pdfHeight;
+        finalPdfHeight = pageHeight - 100;
+        finalPdfWidth = pdfWidth * scale;
+        x = (pageWidth - finalPdfWidth) / 2;
+        y = 50; // Keep top margin
+      }
+      
+      pdf.addImage(imgData, "JPEG", x, y, finalPdfWidth, finalPdfHeight, undefined, 'FAST');
       
       const pdfData = pdf.output('arraybuffer');
       const invoiceNo = invoice.invoiceNo || invoice.invoiceId || (invoice as any)?.["Invoice No"] || '-';

@@ -115,11 +115,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onChange, onPreview }) => {
         // For each found date, build the row
         dateColumns.forEach((date) => {
           const show = Number(row[`${date} SHOW`]) || 0;
-          const aud = Number(row[`${date} AUDIENCE`]) || 0;
-          const collection = Number(row[`${date} COLLECTION`]) || 0;
+          // Try different possible column names for audience and collection
+          const aud = Number(row[`${date} AUDIENCE`]) || Number(row[`${date} AUDIEN`]) || Number(row[`05 AUDIEN`]) || 0;
+          const collection = Number(row[`${date} COLLECTION`]) || Number(row[`${date} COLLECT`]) || Number(row[`5 COLLECT`]) || 0;
+          
+          // Convert date format from DD-MM to DD-MM-YYYY (assuming 2025 based on Excel data)
+          const formattedDate = `${date}-2025`;
+          
           if (show || aud || collection) {
             table.push({
-              date,
+              date: formattedDate,
               show,
               aud,
               collection,

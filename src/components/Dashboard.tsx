@@ -14,6 +14,17 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
   const [showEdit, setShowEdit] = useState(false);
   const [editInvoice, setEditInvoice] = useState<any>(null);
 
+  // Memoize invoice data for preview
+  const memoizedInvoiceData = useMemo(() => {
+    if (!selectedInvoice) return {};
+    const data = selectedInvoice.data || {};
+    return {
+      ...data,
+      invoiceId: selectedInvoice.invoiceId,
+      invoiceNo: selectedInvoice.invoiceNo || selectedInvoice.invoiceId
+    };
+  }, [selectedInvoice]);
+
 
   // Fetch invoices from backend
   useEffect(() => {
@@ -205,13 +216,14 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
       if (!target.closest('.filter-dropdown')) {
         setShowFilter(false);
       }
-      // Close actions dropdown when clicking outside
-      if (!target.closest('.actions-dropdown')) {
+      // Close preview modal when clicking outside
+      if (!target.closest('.preview-modal')) {
+        setShowPreview(false);
         setSelectedInvoice(null);
       }
     };
 
-    if (showFilter || selectedInvoice) {
+    if (showFilter || showPreview) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -387,7 +399,7 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
     const html2canvas = (await import('html2canvas')).default;
     const jsPDF = (await import('jspdf')).default;
     const canvas = await html2canvas(hiddenDiv, { 
-      scale: 1.5, // Reduced from 2 to 1.5 for smaller file size
+      scale: 1.2, // Reduced scale to make content smaller and fit better
       backgroundColor: '#fff',
       useCORS: true,
       allowTaint: true,
@@ -424,13 +436,30 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
       compress: true // Enable PDF compression
     });
     const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
     const imgWidth = canvas.width;
     const imgHeight = canvas.height;
-    const pdfWidth = Math.min(700, pageWidth - 60); // Slightly smaller width
+    
+    // Calculate dimensions to fit content properly with margins
+    const pdfWidth = Math.min(650, pageWidth - 80); // Smaller width with more margin
     const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-    const x = (pageWidth - pdfWidth) / 2;
-    const y = 30; // Reduced top margin
-    pdf.addImage(imgData, "JPEG", x, y, pdfWidth, pdfHeight, undefined, 'FAST'); // Use FAST compression
+    
+    // Check if content fits on one page, if not, scale it down
+    let finalPdfWidth = pdfWidth;
+    let finalPdfHeight = pdfHeight;
+    let x = (pageWidth - finalPdfWidth) / 2;
+    let y = 50; // Increased top margin
+    
+    if (pdfHeight > pageHeight - 100) {
+      // Content is too tall, scale it down to fit
+      const scale = (pageHeight - 100) / pdfHeight;
+      finalPdfHeight = pageHeight - 100;
+      finalPdfWidth = pdfWidth * scale;
+      x = (pageWidth - finalPdfWidth) / 2;
+      y = 50; // Keep top margin
+    }
+    
+    pdf.addImage(imgData, "JPEG", x, y, finalPdfWidth, finalPdfHeight, undefined, 'FAST'); // Use FAST compression
     const filename = exactInvoiceNo === '-' ? `Invoice_${Date.now()}.pdf` : `Invoice_${exactInvoiceNo}.pdf`;
     pdf.save(filename);
     reactRoot.unmount();
@@ -667,17 +696,20 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
 
       {/* Invoice Preview Modal */}
       {showPreview && selectedInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 preview-modal">
           <div className="bg-white rounded-xl shadow-2xl min-w-[1300px] w-[90vw] max-h-[90vh] flex flex-col relative overflow-hidden">
             <button
               className="absolute top-3 right-3 text-gray-600 hover:text-orange-600 text-2xl font-bold z-10"
-              onClick={() => setShowPreview(false)}
+              onClick={() => {
+                setShowPreview(false);
+                setSelectedInvoice(null);
+              }}
               aria-label="Close"
             >
               &times;
             </button>
             <div className="overflow-y-auto p-6 flex justify-center" style={{ maxHeight: '80vh', overflowX: 'hidden' }}>
-              <InvoicePreview data={useMemo(() => getInvoiceData(selectedInvoice), [selectedInvoice])} showDownloadButton={false} />
+              <InvoicePreview data={memoizedInvoiceData} showDownloadButton={false} />
             </div>
           </div>
         </div>
