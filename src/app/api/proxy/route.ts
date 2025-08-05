@@ -35,15 +35,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Handle FormData uploads
+    const formData = await request.formData();
     const backendUrl = 'https://backend-invoice-gen.onrender.com/api/invoice-upload';
     
     const response = await fetch(backendUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+      body: formData,
     });
 
     if (!response.ok) {
