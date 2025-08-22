@@ -505,25 +505,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onChange, onPreview }) => {
         </div>
       </div>
 
-      {/* Tax and Share Section */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold mb-3 text-green-600">Tax & Share Settings</h3>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Share %</label>
-          <input type="number" min="0" max="100" value={share} onChange={handleShareChange} className="w-24 border px-2 py-1 rounded" />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">GST Type</label>
-          <select value={gstType} onChange={handleGstTypeChange} className="w-32 border px-2 py-1 rounded">
-            <option value="IGST">IGST</option>
-            <option value="CGST/SGST">CGST/SGST</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">GST %</label>
-          <input type="number" min="0" max="100" value={gstRate} onChange={handleGstRateChange} className="w-24 border px-2 py-1 rounded" />
-        </div>
-      </div>
+
       
       {error && <div className="text-red-500 text-xs">{error}</div>}
     </form>
