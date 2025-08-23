@@ -252,218 +252,107 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showFilter, showPreview]);
+    }, [showFilter, showPreview]);
 
-  // Download handler
-  const handleDownloadPDF = async (inv: any) => {
-    const invoiceData = getInvoiceData(inv);
-    // Only use Excel invoice number, no backend fallback
-    const exactInvoiceNo = (invoiceData as any)?.["In_no"] || '';
-    
-    const { createRoot } = await import('react-dom/client');
-    let hiddenDiv = document.createElement('div');
-    hiddenDiv.style.position = 'fixed';
-    hiddenDiv.style.left = '-9999px';
-    hiddenDiv.style.top = '0';
-    hiddenDiv.style.width = '800px';
-    hiddenDiv.style.background = '#fff';
-    
-    const styleTag = document.createElement('style');
-    styleTag.textContent = `
-      * {
-        color: #000 !important;
-        background-color: #fff !important;
-        border-color: #000 !important;
-      }
-      .bg-orange-600 { background-color: #fff !important; }
-      .bg-blue-600 { background-color: #fff !important; }
-      .text-white { color: #000 !important; }
-      .text-black { color: #000 !important; }
-      .border-black { border-color: #000 !important; }
-      img[src*="Stamp_mum.png"] {
-        width: 144px !important;
-        height: 120px !important;
-        object-fit: contain !important;
-        min-width: 144px !important;
-        max-width: 144px !important;
-        min-height: 120px !important;
-        max-height: 120px !important;
-        aspect-ratio: 1.2/1 !important;
-        transform: none !important;
-        scale: 1 !important;
-        flex-shrink: 0 !important;
-        flex-grow: 0 !important;
-        box-sizing: border-box !important;
-        display: block !important;
-        position: static !important;
-      }
-      div:has(img[src*="Stamp_mum.png"]) {
-        width: 144px !important;
-        height: 120px !important;
-        flex-shrink: 0 !important;
-        flex-grow: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        min-width: 144px !important;
-        max-width: 144px !important;
-        min-height: 120px !important;
-        max-height: 120px !important;
-      }
-      .w-full[style*="fontSize: 13"] {
-        position: relative !important;
-        margin-top: 16px !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-        position: static !important;
-        transform: none !important;
-      }
-      .p-2[style*="position: relative"] {
-        position: relative !important;
-        margin: 0 !important;
-        padding: 8px 16px !important;
-        position: static !important;
-        transform: none !important;
-      }
-      ol[style*="margin: 0"] {
-        margin: 0 !important;
-        padding: 0 !important;
-        position: static !important;
-      }
-      li[style*="marginBottom: '8px'"] {
-        margin-bottom: 8px !important;
-        line-height: 1.4 !important;
-        position: static !important;
-        top: auto !important;
-        transform: none !important;
-      }
-    `;
-    hiddenDiv.appendChild(styleTag);
-    document.body.appendChild(hiddenDiv);
-    
-    const reactRoot = createRoot(hiddenDiv);
-    reactRoot.render(
-      <InvoicePreview data={{ ...invoiceData, invoiceNo: exactInvoiceNo }} showDownloadButton={false} isPdfExport={true} />
-    );
-    
-    await new Promise(r => setTimeout(r, 600));
-    const images = Array.from(hiddenDiv.querySelectorAll('img'));
-    await Promise.all(images.map((img: HTMLImageElement) => {
+  // Helper to wait for all images in a container to load
+  function waitForImagesToLoad(container: HTMLElement) {
+    const images = Array.from(container.querySelectorAll('img'));
+    return Promise.all(images.map(img => {
       if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
-      return new Promise(res => { img.onload = img.onerror = res; });
+      return new Promise(res => {
+        img.onload = img.onerror = res;
+      });
     }));
-    
-    const allElements = hiddenDiv.querySelectorAll('*');
-    allElements.forEach(element => {
-      if (element instanceof HTMLElement) {
-        const classesToRemove = Array.from(element.classList).filter(cls => 
-          cls.includes('bg-') || cls.includes('text-') || cls.includes('border-')
-        );
-        classesToRemove.forEach(cls => element.classList.remove(cls));
-      }
-    });
-    
-    const stampElements = hiddenDiv.querySelectorAll('img[src*="Stamp_mum.png"]');
-    stampElements.forEach((stamp: Element) => {
-      if (stamp instanceof HTMLElement) {
-        stamp.style.width = '144px';
-        stamp.style.height = '120px';
-        stamp.style.objectFit = 'contain';
-        stamp.style.minWidth = '144px';
-        stamp.style.maxWidth = '144px';
-        stamp.style.minHeight = '120px';
-        stamp.style.maxHeight = '120px';
-        stamp.style.aspectRatio = '1.2/1';
-        stamp.style.transform = 'none';
-        stamp.style.scale = '1';
-        stamp.style.flexShrink = '0';
-        stamp.style.flexGrow = '0';
-        stamp.style.boxSizing = 'border-box';
+  }
+
+  // PDF Export using html2canvas for pixel-perfect match - Exact copy from InvoicePreview
+  const handleDownloadPDF = async (inv: any) => {
+    try {
+      const invoiceData = getInvoiceData(inv);
+      const exactInvoiceNo = (invoiceData as any)?.["In_no"] || '';
+      
+      let hiddenDiv = document.createElement('div');
+      hiddenDiv.style.position = 'fixed';
+      hiddenDiv.style.left = '-9999px';
+      hiddenDiv.style.top = '0';
+      hiddenDiv.style.width = '800px';
+      hiddenDiv.style.background = '#fff';
+      hiddenDiv.style.color = '#000';
+      hiddenDiv.style.fontFamily = 'Arial, Helvetica, sans-serif';
         
-        const container = stamp.parentElement;
-        if (container) {
-          container.style.width = '144px';
-          container.style.height = '120px';
-          container.style.flexShrink = '0';
-          container.style.flexGrow = '0';
-          container.style.display = 'flex';
-          container.style.alignItems = 'center';
-          container.style.justifyContent = 'center';
-          container.style.minWidth = '144px';
-          container.style.maxWidth = '144px';
-          container.style.minHeight = '120px';
-          container.style.maxHeight = '120px';
-        }
+      const styleTag = document.createElement('style');
+      styleTag.textContent = `
+          * {
+          color: #000 !important;
+          background-color: transparent !important;
+          border-color: #000 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          }
+      `;
+      hiddenDiv.appendChild(styleTag);
+      document.body.appendChild(hiddenDiv);
+
+      // Render InvoicePreview into hiddenDiv with the exact same invoice number
+      const { createRoot } = await import('react-dom/client');
+      const reactRoot = createRoot(hiddenDiv);
+      reactRoot.render(
+          <InvoicePreview data={{ ...invoiceData, invoiceNo: exactInvoiceNo }} showDownloadButton={false} isPdfExport={true} />
+      );
+
+      await new Promise(r => setTimeout(r, 600));
+
+      // Apply vertical alignment fix just for PDF rendering
+      const tableCells = hiddenDiv.querySelectorAll('.pdf-cell-fix');
+      tableCells.forEach(cell => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.position = 'relative';
+        htmlCell.style.top = '-2.5px'; // Adjust this value to counteract the downward shift
+      });
+
+      await waitForImagesToLoad(hiddenDiv);
+      
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(hiddenDiv, { 
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+      });
+        
+      const imgData = canvas.toDataURL("image/png");
+      const jsPDF = (await import('jspdf')).default;
+      const pdf = new jsPDF({ 
+          orientation: "p", 
+          unit: "pt", 
+          format: "a4",
+          compress: true
+      });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      const ratio = canvasWidth / canvasHeight;
+      const calculatedHeight = pdfWidth / ratio;
+
+      let finalPdfHeight = calculatedHeight;
+      if (calculatedHeight > pdfHeight) {
+          finalPdfHeight = pdfHeight;
       }
-    });
-    
-    const html2canvas = (await import('html2canvas')).default;
-    const jsPDF = (await import('jspdf')).default;
-    const canvas = await html2canvas(hiddenDiv, { 
-      scale: 1.2,
-      backgroundColor: '#fff',
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      removeContainer: true,
-      imageTimeout: 5000,
-      onclone: (clonedDoc) => {
-        const clonedStamp = clonedDoc.querySelector('img[src*="Stamp_mum.png"]');
-        if (clonedStamp instanceof HTMLElement) {
-          clonedStamp.style.width = '144px';
-          clonedStamp.style.height = '120px';
-          clonedStamp.style.objectFit = 'contain';
-          clonedStamp.style.aspectRatio = '1.2/1';
-          clonedStamp.style.transform = 'none';
-          clonedStamp.style.scale = '1';
-          clonedStamp.style.flexShrink = '0';
-          clonedStamp.style.flexGrow = '0';
-        }
-      },
-      ignoreElements: (element) => {
-        const style = window.getComputedStyle(element);
-        return style.color.includes('oklch') || 
-               style.backgroundColor.includes('oklch') ||
-               style.borderColor.includes('oklch');
-      }
-    });
-    
-    const imgData = canvas.toDataURL("image/jpeg", 0.8);
-    const pdf = new jsPDF({ 
-      orientation: 'p', 
-      unit: 'pt', 
-      format: 'a4',
-      compress: true
-    });
-    
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
-    
-    const pdfWidth = Math.min(650, pageWidth - 80);
-    const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-    
-    let finalPdfWidth = pdfWidth;
-    let finalPdfHeight = pdfHeight;
-    let x = (pageWidth - finalPdfWidth) / 2;
-    let y = 50;
-    
-    if (pdfHeight > pageHeight - 100) {
-      const scale = (pageHeight - 100) / pdfHeight;
-      finalPdfHeight = pageHeight - 100;
-      finalPdfWidth = pdfWidth * scale;
-      x = (pageWidth - finalPdfWidth) / 2;
-      y = 50;
+      
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, finalPdfHeight, undefined, 'FAST');
+      const filename = exactInvoiceNo === '-' ? `Invoice_${Date.now()}.pdf` : `Invoice_${exactInvoiceNo}.pdf`;
+      pdf.save(filename);
+
+      reactRoot.unmount();
+      document.body.removeChild(hiddenDiv);
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      alert('Error generating PDF. Please try again.');
     }
-    
-    pdf.addImage(imgData, "JPEG", x, y, finalPdfWidth, finalPdfHeight, undefined, 'FAST');
-    const filename = exactInvoiceNo === '-' ? `Invoice_${Date.now()}.pdf` : `Invoice_${exactInvoiceNo}.pdf`;
-    pdf.save(filename);
-    reactRoot.unmount();
-    document.body.removeChild(hiddenDiv);
   };
 
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50 flex flex-col">
       {/* Top Bar */}
@@ -650,7 +539,7 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                   Edit
-                                </button>
+                                                                </button>
                                 <button
                                   className="w-full text-left px-4 py-2 text-gray-700 hover:bg-orange-50 flex items-center gap-2"
                                   onClick={() => handleDownloadPDF(inv)}
@@ -658,8 +547,9 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                   </svg>
-                                  Download
+                                  Download PDF
                                 </button>
+ 
                                 <button
                                   className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 flex items-center gap-2"
                                   onClick={() => handleDelete(inv)}
