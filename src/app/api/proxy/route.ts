@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// ✅ Railway backend URL configured
-// Backend is deployed at: https://zippy-healing-production.up.railway.app
+// ✅ Local backend URL configured
+// Backend is running at: http://localhost:5000
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoices';
     
-    const backendUrl = `https://zippy-healing-production.up.railway.app/api/${path}`;
+    const backendUrl = `${BACKEND_URL}/api/${path}`;
     
     console.log('Proxy GET request to:', backendUrl);
     
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     let lastError: any = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        console.log(`Attempt ${attempt}/3 to connect to Railway backend...`);
+        console.log(`Attempt ${attempt}/3 to connect to backend...`);
         
         const response = await fetch(backendUrl, {
           method: 'GET',
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
         }
 
         const data = await response.json();
-        console.log(`✅ Successfully connected to Railway backend on attempt ${attempt}`);
+        console.log(`✅ Successfully connected to backend on attempt ${attempt}`);
         
         return NextResponse.json(data, {
           headers: {
@@ -52,14 +53,14 @@ export async function GET(request: NextRequest) {
         console.error(`Attempt ${attempt}/3 failed:`, fetchError.message);
         
         if (fetchError.name === 'AbortError') {
-          console.error('Request timeout - Railway backend may be slow or unresponsive');
-          throw new Error('Request timeout - Railway backend may be slow or unresponsive');
+          console.error('Request timeout - Backend may be slow or unresponsive');
+          throw new Error('Request timeout - Backend may be slow or unresponsive');
         }
         
-        // Check if it's a DNS resolution error
-        if (fetchError.message && (fetchError.message.includes('ENOTFOUND') || fetchError.message.includes('getaddrinfo'))) {
-          console.error('DNS resolution failed - Railway backend URL may be incorrect');
-          throw new Error('DNS resolution failed - Railway backend URL may be incorrect. Please verify the backend URL.');
+        // Check if it's a connection error (local development)
+        if (fetchError.message && (fetchError.message.includes('ECONNREFUSED') || fetchError.message.includes('fetch failed'))) {
+          console.error('Connection failed - Make sure backend is running on', BACKEND_URL);
+          throw new Error(`Connection failed - Make sure backend is running on ${BACKEND_URL}`);
         }
         
         // If this is not the last attempt, wait before retrying
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       { 
         error: 'Failed to fetch from backend',
         details: error.message,
-        backendUrl: `https://zippy-healing-production.up.railway.app/api/${request.nextUrl.searchParams.get('path') || 'invoices'}`
+        backendUrl: `${BACKEND_URL}/api/${request.nextUrl.searchParams.get('path') || 'invoices'}`
       },
       { status: 500 }
     );
@@ -95,7 +96,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoices';
-    const backendUrl = `https://zippy-healing-production.up.railway.app/api/${path}`;
+    const backendUrl = `${BACKEND_URL}/api/${path}`;
     
     console.log('Proxy PUT request to:', backendUrl);
     
@@ -133,7 +134,7 @@ export async function PUT(request: NextRequest) {
       { 
         error: 'Failed to update on backend',
         details: error.message || 'Unknown error',
-        backendUrl: `https://zippy-healing-production.up.railway.app/api/${request.nextUrl.searchParams.get('path') || 'invoices'}`
+        backendUrl: `${BACKEND_URL}/api/${request.nextUrl.searchParams.get('path') || 'invoices'}`
       },
       { status: 500 }
     );
@@ -144,7 +145,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoices';
-    const backendUrl = `https://zippy-healing-production.up.railway.app/api/${path}`;
+    const backendUrl = `${BACKEND_URL}/api/${path}`;
     
     console.log('Proxy DELETE request to:', backendUrl);
     
@@ -176,7 +177,7 @@ export async function DELETE(request: NextRequest) {
       { 
         error: 'Failed to delete on backend',
         details: error.message || 'Unknown error',
-        backendUrl: `https://zippy-healing-production.up.railway.app/api/${request.nextUrl.searchParams.get('path') || 'invoices'}`
+        backendUrl: `${BACKEND_URL}/api/${request.nextUrl.searchParams.get('path') || 'invoices'}`
       },
       { status: 500 }
     );
@@ -187,7 +188,7 @@ export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoice-upload';
-    const backendUrl = `https://zippy-healing-production.up.railway.app/api/${path}`;
+    const backendUrl = `${BACKEND_URL}/api/${path}`;
     
     console.log('Proxy POST request to:', backendUrl);
     
@@ -208,7 +209,7 @@ export async function POST(request: NextRequest) {
     let lastError: any = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        console.log(`Upload attempt ${attempt}/3 to Railway backend...`);
+        console.log(`Upload attempt ${attempt}/3 to backend...`);
         
         const response = await fetch(backendUrl, {
           method: 'POST',
@@ -240,8 +241,8 @@ export async function POST(request: NextRequest) {
         console.error(`Upload attempt ${attempt}/3 failed:`, fetchError.message);
         
         if (fetchError.name === 'AbortError') {
-          console.error('Upload request timeout - Railway backend may be slow');
-          throw new Error('Upload request timeout - Railway backend may be slow');
+          console.error('Upload request timeout - Backend may be slow');
+          throw new Error('Upload request timeout - Backend may be slow');
         }
         
         // If this is not the last attempt, wait before retrying
@@ -266,7 +267,7 @@ export async function POST(request: NextRequest) {
       { 
         error: 'Failed to upload to backend',
         details: error.message || 'Unknown error',
-        backendUrl: `https://zippy-healing-production.up.railway.app/api/${request.nextUrl.searchParams.get('path') || 'invoice-upload'}`
+        backendUrl: `${BACKEND_URL}/api/${request.nextUrl.searchParams.get('path') || 'invoice-upload'}`
       },
       { status: 500 }
     );
