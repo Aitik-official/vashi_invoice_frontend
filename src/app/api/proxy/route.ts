@@ -1,14 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// ✅ Local development - All requests go to localhost
-// Backend should be running on http://localhost:5000
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+// ✅ Backend URL configuration
+// - Local development: Uses http://localhost:5000 (when NODE_ENV is development or localhost)
+// - Production: Uses https://vashi-invocie-backned.onrender.com
+// - Can be overridden with BACKEND_URL environment variable
+function getBackendUrl(request?: NextRequest): string {
+  // Highest priority: BACKEND_URL environment variable
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+  
+  // Check if request is from localhost (local development)
+  if (request) {
+    const hostname = request.headers.get('host') || '';
+    const isLocalhost = hostname.includes('localhost') || hostname.includes('127.0.0.1') || hostname.includes('0.0.0.0');
+    if (isLocalhost) {
+      return 'http://localhost:5000';
+    }
+  }
+  
+  // Check NODE_ENV for development mode
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:5000';
+  }
+  
+  // Default: Production URL
+  return 'https://vashi-invocie-backned.onrender.com';
+}
 
 export async function GET(request: NextRequest) {
+  const BACKEND_URL = getBackendUrl(request);
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoices';
-    
     const backendUrl = `${BACKEND_URL}/api/${path}`;
     
     console.log('Proxy GET request to:', backendUrl);
@@ -93,6 +117,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const BACKEND_URL = getBackendUrl(request);
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoices';
@@ -142,6 +167,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const BACKEND_URL = getBackendUrl(request);
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoices';
@@ -185,6 +211,7 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const BACKEND_URL = getBackendUrl(request);
   try {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || 'invoice-upload';
