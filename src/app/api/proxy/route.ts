@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// ✅ Production backend URL configured
-// Backend is deployed at: https://demo-invoice-backend.onrender.com
-const BACKEND_URL = process.env.BACKEND_URL || 'https://demo-invoice-backend.onrender.com';
+// ✅ Local development - All requests go to localhost
+// Backend should be running on http://localhost:5000
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
 
 export async function GET(request: NextRequest) {
   try {

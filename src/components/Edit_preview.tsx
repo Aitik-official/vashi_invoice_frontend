@@ -382,7 +382,7 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
       );
       
       // Create blob and download
-      const blob = new Blob([data], { type: 'application/pdf' });
+      const blob = new Blob([data.slice()], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -411,27 +411,20 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
       )}
       <div
         ref={previewRef}
-        className="w-[800px] mx-auto bg-white shadow-2xl rounded-md p-0 text-black font-sans border border-black"
-        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1100px', boxSizing: 'border-box', position: 'relative', overflowY: 'auto', overflowX: 'hidden', marginTop: 32, marginBottom: 32 }}
+        className="w-[800px] mx-auto bg-white shadow-2xl rounded-md text-black font-sans border border-black"
+        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1100px', boxSizing: 'border-box', position: 'relative', overflowY: 'auto', overflowX: 'hidden', marginTop: 32, marginBottom: 32, padding: 0 }}
       >
-        {/* Header */}
-        <div className="flex flex-row items-stretch" style={{ background: '#fff', minHeight: 130, height: 130 }}>
-          <div style={{ width: 220, height: '100%', display: 'flex', alignItems: 'stretch', justifyContent: 'flex-start', background: 'transparent', padding: 0, margin: 0 }}>
-            <img src="/inovice_formatting/1stfflogo.jpg" alt="Logo" style={{ height: '100%', width: '100%', objectFit: 'contain', margin: 0, padding: 0 }} />
-          </div>
-          <div className="flex-1 flex flex-col items-end justify-center pr-8" style={{ color: '#000', textAlign: 'right', fontFamily: 'Arial, Helvetica, sans-serif', height: '100%', paddingTop: 8, paddingBottom: 8, justifyContent: 'center' }}>
-            <div className="font-bold" style={{ fontSize: 20, letterSpacing: 1, lineHeight: 1.1, marginBottom: 8 }}>FIRST FILM STUDIOS LLP</div>
-            <div style={{ fontSize: 13, lineHeight: 1.1 }}>26-104, RIDDHI SIDHI, CHS, CSR COMPLEX, OLD MHADA,</div>
-            <div style={{ fontSize: 13, lineHeight: 1.1 }}>KANDIVALI WEST, MUMBAI - 400067, MAHARASHTRA</div>
-            <div style={{ fontSize: 13, lineHeight: 1.1 }}>info@firstfilmstudios.com</div>
-            <div style={{ fontSize: 13, lineHeight: 1.1 }}>GST- {invoice.gst}</div>
-            <div style={{ fontSize: 13, lineHeight: 1.1 }}>PAN No:- {invoice.pan}</div>
-            <div style={{ fontSize: 13, lineHeight: 1.1 }}>LLP Reg. No.- {invoice.regNo}</div>
-          </div>
+        {/* Header - Single Image replacing logo and company details - Full width from top */}
+        <div style={{ width: '100%', margin: 0, padding: 0 }}>
+          <img 
+            src="/inovice_formatting/invoice-header.png" 
+            alt="Invoice Header" 
+            style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
+          />
         </div>
 
         {/* Main Invoice Box */}
-        <div className="m-4" style={{ background: '#fff', padding: 0 }}>
+        <div style={{ background: '#fff', padding: '1rem' }}>
           {/* Top Details - Two Columns */}
           <div className="flex flex-row w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 15, minHeight: 160 }}>
             {/* Left Column */}

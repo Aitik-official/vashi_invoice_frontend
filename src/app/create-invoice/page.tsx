@@ -1,272 +1,510 @@
 "use client";
-import React, { useState } from "react";
-import InvoiceForm from "../../components/InvoiceForm";
-import InvoicePreview from "../../components/InvoicePreview";
-import { generateStandardizedPDF } from "../../utils/pdfGenerator";
-import JSZip from 'jszip';
+import React, { useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
+import Link from 'next/link';
+import { DISPLAY_NAMES } from '../../components/InvoicePreview';
+import { generateStandardizedPDF } from '../../utils/pdfGenerator';
+import InvoicePreview from '../../components/InvoicePreview';
 
-export default function CreateInvoicePage() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [backendInvoices, setBackendInvoices] = useState<any[]>([]); // NEW
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const [share, setShare] = useState(45); // Default share %
-  const [gstType, setGstType] = useState('CGST/SGST');
-  const [gstRate, setGstRate] = useState(18);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewSource, setPreviewSource] = useState<'frontend' | 'backend'>('frontend'); // NEW
-  const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
-  const [selectAll, setSelectAll] = useState(false);
-  const [showWarningDialog, setShowWarningDialog] = useState(false);
-  const [hasUploaded, setHasUploaded] = useState(false);
-  const [duplicateInvoices, setDuplicateInvoices] = useState<any[]>([]);
-
-  // Handler to receive invoices and share/gst from InvoiceForm
-  const handleFormChange = (data: any[], isNewUpload: boolean = false) => {
-    setInvoices(data || []);
-    setSelectedIdx(0);
-    
-    // Only reset preview and upload state if this is a new file upload
-    if (isNewUpload) {
-      setShowPreview(false);
-      setHasUploaded(false);
-      setBackendInvoices([]);
-      setDuplicateInvoices([]);
-      setSelectedInvoices([]);
-      setSelectAll(false);
+// EditableSpan component - completely uncontrolled, only updates state on blur
+const EditableSpan = React.memo(({ 
+  field, 
+  initialValue, 
+  onChange, 
+  style = {}, 
+  placeholder = "" 
+}: { 
+  field: string;
+  initialValue: string;
+  onChange: (field: string, value: string) => void;
+  style?: any;
+  placeholder?: string;
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isInitializedRef = useRef(false);
+  
+  // Initialize value only once on mount
+  useLayoutEffect(() => {
+    if (inputRef.current && !isInitializedRef.current) {
+      inputRef.current.value = initialValue || "";
+      isInitializedRef.current = true;
     }
-    
-    if (data && data.length) {
-      setShare(data[0].share ?? 45);
-      setGstType(data[0].gstType ?? 'CGST/SGST');
-      setGstRate(data[0].gstRate ?? 18);
+  }, []);
+  
+  // Only sync value when component is not focused and value changed externally
+  // This prevents interference while user is typing
+  useLayoutEffect(() => {
+    if (inputRef.current && document.activeElement !== inputRef.current) {
+      const currentValue = inputRef.current.value;
+      if (initialValue !== currentValue) {
+        inputRef.current.value = initialValue || "";
+      }
+    }
+  }, [initialValue]);
+  
+  // Don't update state during typing - only on blur
+  const handleBlur = () => {
+    if (inputRef.current) {
+      const finalValue = inputRef.current.value;
+      onChange(field, finalValue);
     }
   };
+  
+  return (
+    <input
+      ref={inputRef}
+      key={field}
+      type="text"
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      style={{
+        ...style,
+        border: 'none',
+        borderBottom: '1px solid #008000',
+        background: 'transparent',
+        outline: 'none',
+        textAlign: 'center',
+        fontSize: '12px',
+        padding: '0',
+        width: style.width || '100%',
+        minHeight: '16px',
+      }}
+      className="editable-field"
+    />
+  );
+}, (prevProps, nextProps) => {
+  // Never re-render based on value changes - only field/style
+  return prevProps.field === nextProps.field &&
+         JSON.stringify(prevProps.style) === JSON.stringify(nextProps.style);
+});
 
-  // New: Upload Excel and invoice data to backend
-  // Check for duplicate invoices in backend
-  const checkForDuplicates = async (invoicesToCheck: any[]) => {
-    try {
-      const fetchRes = await fetch('/api/proxy');
-      if (fetchRes.ok) {
-        const backendInvoices = await fetchRes.json();
-        
-        const duplicates = [];
-        
-        for (const newInvoice of invoicesToCheck) {
-          for (const existingInvoice of backendInvoices) {
-            // Compare EVERY SINGLE FIELD - only warn if ALL fields are exactly identical
-            const isDuplicate = 
-              // Basic invoice info
-              newInvoice.clientName === existingInvoice.data?.clientName &&
-              newInvoice.invoiceDate === existingInvoice.data?.invoiceDate &&
-              newInvoice.dueDate === existingInvoice.data?.dueDate &&
-              newInvoice["In_no"] === existingInvoice.data?.["In_no"] &&
-              
-              // Financial details
-              newInvoice.totalAmount === existingInvoice.data?.totalAmount &&
-              newInvoice.subTotal === existingInvoice.data?.subTotal &&
-              newInvoice.gstAmount === existingInvoice.data?.gstAmount &&
-              newInvoice.finalAmount === existingInvoice.data?.finalAmount &&
-              
-              // Share and GST
-              newInvoice.share === existingInvoice.data?.share &&
-              newInvoice.gstType === existingInvoice.data?.gstType &&
-              newInvoice.gstRate === existingInvoice.data?.gstRate &&
-              
-              // Client details
-              newInvoice.clientEmail === existingInvoice.data?.clientEmail &&
-              newInvoice.clientPhone === existingInvoice.data?.clientPhone &&
-              newInvoice.clientAddress === existingInvoice.data?.clientAddress &&
-              
-              // Other details
-              newInvoice.paymentTerms === existingInvoice.data?.paymentTerms &&
-              newInvoice.notes === existingInvoice.data?.notes &&
-              
-              // Table data - exact match including all table fields
-              newInvoice.table?.length === existingInvoice.data?.table?.length &&
-              JSON.stringify(newInvoice.table) === JSON.stringify(existingInvoice.data?.table) &&
-              
-              // Calculated totals - these must also match exactly
-              newInvoice.totalShow === existingInvoice.data?.totalShow &&
-              newInvoice.totalAud === existingInvoice.data?.totalAud &&
-              newInvoice.totalCollection === existingInvoice.data?.totalCollection &&
-              newInvoice.showTax === existingInvoice.data?.showTax &&
-              newInvoice.otherDeduction === existingInvoice.data?.otherDeduction;
-            
-            if (isDuplicate) {
-              duplicates.push({
-                new: newInvoice,
-                existing: existingInvoice
-              });
-            }
-          }
-        }
-        
-        return duplicates;
-      }
-    } catch (err) {
-      console.error('Error checking for duplicates:', err);
+EditableSpan.displayName = 'EditableSpan';
+
+function CreateInvoiceDirectPage() {
+  const [invoiceData, setInvoiceData] = useState<any>({
+    "In_no": "",
+    invoiceDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+    mrRaRa: "",
+    place: "",
+    to: "",
+    chequeDraftNo: "",
+    received: "",
+    deposit: "",
+    raRaNo: "",
+    table: [],
+    totalSalesRs: "",
+    totalSalesPaise: "",
+    expensesRs: "",
+    expensesPaise: "",
+    netBalanceRs: "",
+    netBalancePaise: "",
+    grandTotalRs: "",
+    grandTotalPaise: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  const handleInputChange = useCallback((field: string, value: any) => {
+    setInvoiceData((prev: any) => ({
+      ...prev,
+      [field]: value
+    }));
+  }, []);
+
+  // Calculate total expenses from right table
+  const calculateTotalExpenses = () => {
+    let totalPaise = 0;
+    
+    // Sum all expense rows (0-7)
+    for (let i = 0; i < 8; i++) {
+      const rs = parseFloat(invoiceData[`expense${i}_rs`] || '0') || 0;
+      const paise = parseFloat(invoiceData[`expense${i}_paise`] || '0') || 0;
+      totalPaise += (rs * 100) + paise;
     }
-    return [];
+    
+    // Sum all empty rows (0-4)
+    for (let i = 0; i < 5; i++) {
+      const rs = parseFloat(invoiceData[`empty${i}_rs`] || '0') || 0;
+      const paise = parseFloat(invoiceData[`empty${i}_paise`] || '0') || 0;
+      totalPaise += (rs * 100) + paise;
+    }
+    
+    const totalRs = Math.floor(totalPaise / 100);
+    const remainingPaise = totalPaise % 100;
+    
+    return { rs: totalRs, paise: remainingPaise };
   };
 
-  const uploadToBackend = async () => {
-    if (!invoices.length) return;
+  // Calculate row total (Piece or Crates × Per unit price)
+  const calculateRowTotal = (rowIndex: number) => {
+    const piece = parseFloat(invoiceData[`row${rowIndex}_item`] || '0') || 0; // Using _item field for Piece
+    const crates = parseFloat(invoiceData[`row${rowIndex}_piece`] || '0') || 0; // Using _piece field for Crates
+    const perUnitPrice = parseFloat(invoiceData[`row${rowIndex}_price`] || '0') || 0;
+    
+    // Use Piece if available, otherwise use Crates
+    const quantity = piece > 0 ? piece : crates;
+    
+    if (quantity === 0 || perUnitPrice === 0) {
+      return { rs: null, paise: null };
+    }
+    
+    // Calculate total in paise (per unit price is in rupees and paise format)
+    // Assuming per unit price is entered as a decimal number (e.g., 10.50 = 10 rupees 50 paise)
+    const totalPaise = Math.round(quantity * perUnitPrice * 100);
+    const totalRs = Math.floor(totalPaise / 100);
+    const remainingPaise = totalPaise % 100;
+    
+    return { rs: totalRs, paise: remainingPaise };
+  };
+
+  // Calculate total sales from all left table rows
+  const calculateTotalSales = () => {
+    let totalPaise = 0;
+    
+    for (let i = 0; i < 13; i++) {
+      const rowTotal = calculateRowTotal(i);
+      if (rowTotal.rs !== null && rowTotal.paise !== null) {
+        totalPaise += (rowTotal.rs * 100) + rowTotal.paise;
+      }
+    }
+    
+    if (totalPaise === 0) {
+      return { rs: null, paise: null };
+    }
+    
+    const totalRs = Math.floor(totalPaise / 100);
+    const remainingPaise = totalPaise % 100;
+    
+    return { rs: totalRs, paise: remainingPaise };
+  };
+
+  // Calculate net balance (Total Sales - Total Expenses)
+  const calculateNetBalance = () => {
+    const totalSales = calculateTotalSales();
+    const totalExpenses = calculateTotalExpenses();
+    
+    if (totalSales.rs === null || totalSales.paise === null) {
+      return { rs: null, paise: null, isNegative: false };
+    }
+    
+    const salesPaise = (totalSales.rs * 100) + totalSales.paise;
+    const expensesPaise = (totalExpenses.rs * 100) + totalExpenses.paise;
+    
+    const netPaise = salesPaise - expensesPaise;
+    const netRs = Math.floor(Math.abs(netPaise) / 100);
+    const netRemainingPaise = Math.abs(netPaise) % 100;
+    
+    return { rs: netRs, paise: netRemainingPaise, isNegative: netPaise < 0 };
+  };
+
+  // Prepare data for InvoicePreview component (format data properly)
+  const prepareInvoiceDataForPreview = () => {
+    // Build table data from left table rows
+    const tableData: any[] = [];
+    for (let i = 0; i < 13; i++) {
+      const rowTotal = calculateRowTotal(i);
+      if (rowTotal.rs !== null && rowTotal.paise !== null) {
+        tableData.push({
+          rs: rowTotal.rs,
+          paise: rowTotal.paise,
+          details: invoiceData[`row${i}_details`] || '',
+          piece: invoiceData[`row${i}_item`] || '',
+          crates: invoiceData[`row${i}_piece`] || '',
+          price: invoiceData[`row${i}_price`] || '',
+        });
+      }
+    }
+
+    // Build expenses data from right table
+    const expensesData: any[] = [];
+    for (let i = 0; i < 8; i++) {
+      const rs = invoiceData[`expense${i}_rs`] || '';
+      const paise = invoiceData[`expense${i}_paise`] || '';
+      if (rs || paise) {
+        expensesData.push({
+          name: ['Commission', 'Porterage', 'Car rental', 'Bundle expenses', 'Hundekari expenses', 'Space rent', 'Warai', 'Other expenses'][i],
+          rs: rs,
+          paise: paise,
+        });
+      }
+    }
+
+    // Calculate totals
+    const totalSales = calculateTotalSales();
+    const totalExpenses = calculateTotalExpenses();
+    const netBalance = calculateNetBalance();
+
+    return {
+      ...invoiceData,
+      "In_no": invoiceData["In_no"] || '',
+      invoiceDate: invoiceData.invoiceDate || '',
+      table: tableData,
+      totalSalesRs: totalSales.rs !== null ? totalSales.rs : '',
+      totalSalesPaise: totalSales.paise !== null ? totalSales.paise : '',
+      expensesRs: totalExpenses.rs > 0 ? totalExpenses.rs : '',
+      expensesPaise: totalExpenses.paise > 0 ? totalExpenses.paise : '',
+      netBalanceRs: netBalance.rs !== null ? netBalance.rs : '',
+      netBalancePaise: netBalance.paise !== null ? netBalance.paise : '',
+      grandTotalRs: netBalance.rs !== null ? netBalance.rs : '',
+      grandTotalPaise: netBalance.paise !== null ? netBalance.paise : '',
+    };
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!previewRef.current) {
+      alert('Invoice preview not found. Please try again.');
+      return;
+    }
+
     try {
-      const fileInput = document.getElementById('excel-upload') as HTMLInputElement;
-      const file = fileInput?.files?.[0];
-      if (!file) return;
-      const formData = new FormData();
-      formData.append('excel', file);
-      formData.append('invoiceData', JSON.stringify(invoices));
+      const invoiceNo = invoiceData["In_no"] || invoiceData.invoiceNo || '';
+      const filename = invoiceNo ? `Invoice_${invoiceNo}.pdf` : `Invoice_${Date.now()}.pdf`;
       
-      const res = await fetch('/api/proxy?path=invoice-upload', {
-        method: 'POST',
-        body: formData,
-      });
+      // Import html2canvas and jsPDF dynamically
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
       
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Upload error:', errorText);
-        throw new Error('Failed to upload invoice');
-      }
+      // Wait for images to load
+      const images = Array.from(previewRef.current.querySelectorAll('img'));
+      await Promise.all(
+        images.map(
+          (img) =>
+            new Promise<void>((resolve, reject) => {
+              if (img.complete) {
+                resolve();
+                return;
+              }
+              const timeout = setTimeout(() => reject(new Error('Image load timeout')), 10000);
+              img.onload = () => {
+                clearTimeout(timeout);
+                resolve();
+              };
+              img.onerror = () => {
+                clearTimeout(timeout);
+                resolve(); // Continue even if image fails
+              };
+            })
+        )
+      );
+
+      // Apply upward shift only to text labels (not tables/containers) and hide green underlines
+      const textLabels = previewRef.current.querySelectorAll('span:not(td span, th span), p:not(td p, th p)');
+      const inputElements = previewRef.current.querySelectorAll('input.editable-field');
+      const tableCells = previewRef.current.querySelectorAll('td, th, .grid > div');
+      const originalStyles: Array<{ element: HTMLElement; transform: string; position: string; borderBottom: string; overflow: string; whiteSpace: string; minHeight: string; display: string; visibility: string; zIndex: string }> = [];
+      const inputReplacements: Array<{ input: HTMLInputElement; span: HTMLSpanElement }> = [];
       
-      // After upload, fetch the latest invoices from backend
-      const uploadResponse = await res.json();
-      console.log('Upload response:', uploadResponse);
-      
-      // Check if upload was successful and contains invoiceIds
-      if (!uploadResponse.invoiceIds || !Array.isArray(uploadResponse.invoiceIds)) {
-        console.warn('Upload response missing invoiceIds:', uploadResponse);
-        // Still mark as uploaded but show warning
-        setHasUploaded(true);
-        setShowPreview(true);
-        setPreviewSource('frontend');
-        return;
-      }
-      
-      const fetchRes = await fetch('/api/proxy');
-      if (fetchRes.ok) {
-        const backendAll = await fetchRes.json();
+      // Convert input fields to visible text spans so their values are captured in PDF
+      inputElements.forEach((el) => {
+        const htmlEl = el as HTMLInputElement;
+        const inputValue = htmlEl.value || '';
+        // Check if input is in a container with data-field attribute or nearby cheque/received text
+        const parentContainer = htmlEl.closest('[data-field]') || htmlEl.parentElement;
+        const fieldName = parentContainer?.getAttribute('data-field') || '';
+        const nearbyText = parentContainer?.textContent || '';
+        const isChequeField = fieldName.includes('chequeDraftNo') || fieldName.includes('received') || 
+                             nearbyText.includes('Cheque/Draft No') || nearbyText.includes('Received');
         
-        // Ensure backendAll is an array
-        if (!Array.isArray(backendAll)) {
-          console.warn('Backend response is not an array:', backendAll);
-          setHasUploaded(true);
-          setShowPreview(true);
-          setPreviewSource('frontend');
-          return;
-        }
+        // Create a span element to replace the input
+        const textSpan = document.createElement('span');
+        textSpan.textContent = inputValue;
+        textSpan.style.cssText = `
+          display: inline-block;
+          width: ${htmlEl.style.width || '100%'};
+          min-height: ${htmlEl.style.minHeight || '16px'};
+          font-size: ${htmlEl.style.fontSize || '12px'};
+          text-align: ${htmlEl.style.textAlign || 'center'};
+          color: #000;
+          padding: 0;
+          border: none;
+          background: transparent;
+          overflow: visible;
+          white-space: normal;
+          word-wrap: break-word;
+          z-index: 1;
+          position: relative;
+          transform: ${isChequeField ? 'none' : 'translateY(0)'};
+        `;
         
-        const { invoiceIds } = uploadResponse;
-        
-        console.log('Filtering backend invoices with invoiceIds:', invoiceIds);
-        console.log('Total backend invoices:', backendAll.length);
-        
-        const newBackendInvoices = backendAll.filter((inv: { data: any }) => {
-          // ONLY use Excel "In_no" field for filtering
-          const excelInNo = inv.data?.["In_no"];
-          const shouldInclude = excelInNo && invoiceIds.includes(excelInNo);
-          console.log(`Invoice ${excelInNo}: ${shouldInclude ? 'INCLUDED' : 'EXCLUDED'}`);
-          return shouldInclude;
+        // Store original input styles
+        originalStyles.push({
+          element: htmlEl,
+          transform: '',
+          position: '',
+          borderBottom: htmlEl.style.borderBottom || '',
+          overflow: htmlEl.style.overflow || '',
+          whiteSpace: htmlEl.style.whiteSpace || '',
+          minHeight: htmlEl.style.minHeight || '',
+          display: htmlEl.style.display || '',
+          visibility: htmlEl.style.visibility || '',
+          zIndex: htmlEl.style.zIndex || ''
         });
         
-        console.log('Filtered backend invoices:', newBackendInvoices);
+        // Hide the input and show the span
+        htmlEl.style.display = 'none';
+        htmlEl.style.visibility = 'hidden';
+        htmlEl.parentNode?.insertBefore(textSpan, htmlEl);
         
-        if (newBackendInvoices.length === 0) {
-          console.warn('No matching invoices found in backend');
-          setHasUploaded(true);
-          setShowPreview(true);
-          setPreviewSource('frontend');
-          return;
+        inputReplacements.push({ input: htmlEl, span: textSpan });
+      });
+      
+      // Fix text truncation in table cells - ensure full text is visible
+      tableCells.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        originalStyles.push({
+          element: htmlEl,
+          transform: '',
+          position: '',
+          borderBottom: '',
+          overflow: htmlEl.style.overflow || '',
+          whiteSpace: htmlEl.style.whiteSpace || '',
+          minHeight: htmlEl.style.minHeight || '',
+          display: '',
+          visibility: '',
+          zIndex: ''
+        });
+        // Ensure text is fully visible - no clipping
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.whiteSpace = 'normal';
+        // Increase min height to accommodate full text
+        const currentMinHeight = parseInt(htmlEl.style.minHeight || '22px');
+        if (currentMinHeight < 30) {
+          htmlEl.style.minHeight = 'auto';
         }
+      });
+      
+      // Shift only text labels (outside of tables) upward, but exclude cheque text
+      textLabels.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        // Only shift if it's not inside a table and contains text
+        // Exclude cheque text to prevent shifting
+        const textContent = htmlEl.textContent || '';
+        const isChequeText = textContent.includes('Cheque/Draft No') || textContent.includes('Received');
         
-        setBackendInvoices(newBackendInvoices.map((inv: { data: any }) => ({
-          ...inv.data,
-          invoiceNo: inv.data?.["In_no"] || "", // ONLY use Excel "In_no" field
-        })));
-        setSelectedIdx(0);
-        setShowPreview(true);
-        setHasUploaded(true); // Mark as uploaded
-        setPreviewSource('backend');
-      } else {
-        console.error('Failed to fetch backend invoices:', fetchRes.status);
-        // Still mark as uploaded but show frontend preview
-        setHasUploaded(true);
-        setShowPreview(true);
-        setPreviewSource('frontend');
+        if (htmlEl.textContent && htmlEl.textContent.trim() && !htmlEl.closest('table') && !htmlEl.closest('.grid') && !isChequeText) {
+          originalStyles.push({
+            element: htmlEl,
+            transform: htmlEl.style.transform || '',
+            position: htmlEl.style.position || '',
+            borderBottom: '',
+            overflow: '',
+            whiteSpace: '',
+            minHeight: '',
+            display: '',
+            visibility: '',
+            zIndex: ''
+          });
+          htmlEl.style.position = 'relative';
+          htmlEl.style.transform = 'translateY(-3px)';
+        }
+      });
+      
+      // Ensure cheque text line stays properly aligned - no shift
+      const chequeLineContainer = previewRef.current.querySelector('[style*="display: flex"][style*="alignItems"]');
+      if (chequeLineContainer) {
+        const htmlEl = chequeLineContainer as HTMLElement;
+        originalStyles.push({
+          element: htmlEl,
+          transform: htmlEl.style.transform || '',
+          position: htmlEl.style.position || '',
+          borderBottom: '',
+          overflow: '',
+          whiteSpace: '',
+          minHeight: '',
+          display: '',
+          visibility: '',
+          zIndex: ''
+        });
+        // Ensure this container stays aligned
+        htmlEl.style.position = 'relative';
+        htmlEl.style.transform = 'none';
       }
-    } catch (err) {
-      console.error('Upload error:', err);
-      
-      // Even if upload fails, show preview with frontend data
-      console.log('Falling back to frontend preview due to upload error');
-      setHasUploaded(false);
-      setShowPreview(true);
-      setPreviewSource('frontend');
-      
-      // Show user-friendly error message
-      alert('Invoice upload failed, but you can still preview and download the invoice. Please try uploading again later.');
-    }
-  };
 
-  const handlePreviewClick = async () => {
-    // Check if data has already been uploaded
-    if (hasUploaded) {
-      setShowWarningDialog(true);
-      return;
-    }
-    
-    // Check for duplicate invoices in backend
-    const duplicates = await checkForDuplicates(invoices);
-    if (duplicates.length > 0) {
-      setDuplicateInvoices(duplicates);
-      setShowWarningDialog(true);
-      return;
-    }
-    
-    // Show preview immediately with frontend data
-    setShowPreview(true);
-    setPreviewSource('frontend');
-    
-    // Then upload to backend and update
-    await uploadToBackend();
-    setPreviewSource('backend');
-  };
+      // Generate canvas from the editable invoice preview
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2.5,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        width: previewRef.current.scrollWidth,
+        height: previewRef.current.scrollHeight,
+      });
 
-  // Handle warning dialog confirmation
-  const handleWarningConfirm = async () => {
-    setShowWarningDialog(false);
-    
-    // Show preview immediately with frontend data
-    setShowPreview(true);
-    setPreviewSource('frontend');
-    
-    // Then upload to backend and update
-    await uploadToBackend();
-    setPreviewSource('backend');
-  };
-
-  // Handle warning dialog cancel
-  const handleWarningCancel = () => {
-    setShowWarningDialog(false);
-    setDuplicateInvoices([]);
-  };
-
-  // Download a single invoice as PDF
-  const handleDownloadInvoice = async (inv: any, idx: number) => {
-    try {
-      const invoiceNo = inv["In_no"] || inv.invoiceNo || '';
-      const filename = invoiceNo ? `Invoice_${invoiceNo}.pdf` : `Invoice_${Date.now()}_${idx}.pdf`;
+      // Restore original styles and remove text span replacements
+      inputReplacements.forEach(({ input, span }) => {
+        // Restore input visibility
+        input.style.display = '';
+        input.style.visibility = '';
+        // Remove the text span
+        span.remove();
+      });
       
-      const { data } = await generateStandardizedPDF(
-        <InvoicePreview data={inv} showDownloadButton={false} isPdfExport={true} />,
-        filename
-      );
+      originalStyles.forEach(({ element, transform, position, borderBottom, overflow, whiteSpace, minHeight, display, visibility, zIndex }) => {
+        if (transform || position) {
+          element.style.transform = transform;
+          element.style.position = position;
+        }
+        if (borderBottom !== undefined && element instanceof HTMLInputElement) {
+          element.style.borderBottom = borderBottom;
+        }
+        if (overflow !== undefined) {
+          element.style.overflow = overflow;
+        }
+        if (whiteSpace !== undefined) {
+          element.style.whiteSpace = whiteSpace;
+        }
+        if (minHeight !== undefined) {
+          element.style.minHeight = minHeight;
+        }
+        if (display !== undefined && element instanceof HTMLInputElement) {
+          element.style.display = display;
+        }
+        if (visibility !== undefined && element instanceof HTMLInputElement) {
+          element.style.visibility = visibility;
+        }
+        if (zIndex !== undefined) {
+          element.style.zIndex = zIndex;
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/png', 1.0);
       
-      // Create blob and download
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
+      // Create PDF with A4 format
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'pt',
+        format: 'a4',
+        compress: true,
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      
+      // Calculate dimensions with margins
+      const margin = 40;
+      const availableWidth = pdfWidth - (margin * 2);
+      const availableHeight = pdfHeight - (margin * 2);
+      
+      // Calculate scaling to fit content properly
+      const widthRatio = availableWidth / canvasWidth;
+      const heightRatio = availableHeight / canvasHeight;
+      const scaleRatio = Math.min(widthRatio, heightRatio);
+      
+      const finalWidth = canvasWidth * scaleRatio;
+      const finalHeight = canvasHeight * scaleRatio;
+      
+      // Center the content with upward adjustment
+      const x = (pdfWidth - finalWidth) / 2;
+      const y = (pdfHeight - finalHeight) / 2 - 5; // Additional upward shift in PDF
+      
+      // Add image to PDF
+      pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight, undefined, 'FAST');
+      
+      // Generate PDF blob and download
+      const pdfBlob = pdf.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
@@ -275,295 +513,350 @@ export default function CreateInvoicePage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      alert(`Invoice ${filename} downloaded successfully!`);
-    } catch (error) {
-      console.error('Download error:', error);
-      alert('Error downloading invoice. Please try again.');
-    }
-  };
-
-  // Download all selected invoices
-  // Function to generate PDF for ZIP using standardized generator
-  const generatePDFForZip = async (invoice: any, index: number): Promise<{ filename: string, data: Uint8Array }> => {
-    try {
-      const invoiceNo = invoice["In_no"] || invoice.invoiceNo || '';
-      const filename = invoiceNo ? `Invoice_${invoiceNo}.pdf` : `Invoice_${Date.now()}_${index}.pdf`;
-      
-      const { data } = await generateStandardizedPDF(
-        <InvoicePreview data={invoice} showDownloadButton={false} isPdfExport={true} />,
-        filename,
-        { isZipGeneration: true }
-      );
-      
-      return { filename, data };
+      // Save to backend after download
+      await saveInvoice();
     } catch (error) {
       console.error('PDF generation error:', error);
-      throw error;
+      alert('Error generating PDF. Please try again.');
     }
   };
 
-  const handleDownloadAll = async () => {
+  const saveInvoice = async () => {
+    // If no invoice number, skip saving but still allow PDF download
+    if (!invoiceData["In_no"] && !invoiceData.invoiceNo) {
+      console.log('No invoice number provided, skipping save to database');
+      return;
+    }
+
+    setIsSaving(true);
     try {
-    const currentInvoices = previewSource === 'backend' ? backendInvoices : invoices;
-      const selectedInvoicesData = selectedInvoices.map(idx => currentInvoices[idx]);
+      const invoiceNo = invoiceData["In_no"] || invoiceData.invoiceNo;
       
-      if (selectedInvoicesData.length === 0) {
-        alert('Please select at least one invoice to download.');
-        return;
-      }
-
-      // Show loading message
-      const loadingMsg = document.createElement('div');
-      loadingMsg.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        z-index: 10000;
-        font-family: Arial, sans-serif;
-        font-size: 16px;
-      `;
-      loadingMsg.textContent = `Generating ${selectedInvoicesData.length} PDFs for ZIP...`;
-      document.body.appendChild(loadingMsg);
-
-      // Create ZIP file
-      const zip = new JSZip();
+      const checkResponse = await fetch('/api/proxy?endpoint=/api/invoices');
+      const allInvoices = await checkResponse.json();
       
-      // Generate PDFs and add to ZIP
-      for (let i = 0; i < selectedInvoicesData.length; i++) {
-        const invoice = selectedInvoicesData[i];
-        try {
-          const { filename, data } = await generatePDFForZip(invoice, i);
-          zip.file(filename, data);
-          
-          // Update loading message
-          loadingMsg.textContent = `Generated ${i + 1}/${selectedInvoicesData.length} PDFs...`;
-        } catch (error) {
-          console.error(`Error generating PDF for invoice ${i + 1}:`, error);
+      const duplicate = allInvoices.find((inv: any) => {
+        const existingNo = inv.data?.["In_no"] || inv.data?.invoiceNo;
+        return existingNo === invoiceNo;
+      });
+
+      if (duplicate) {
+        const confirmSave = confirm(`Invoice number ${invoiceNo} already exists. Do you want to update it?`);
+        if (!confirmSave) {
+          setIsSaving(false);
+          return;
         }
       }
 
-      // Generate and download ZIP
-      loadingMsg.textContent = 'Creating ZIP file...';
-      const zipBlob = await zip.generateAsync({ 
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 } // Balanced compression
+      const formData = new FormData();
+      formData.append('invoiceData', JSON.stringify([invoiceData]));
+
+      const response = await fetch('/api/proxy', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'endpoint': '/api/invoice-upload'
+        }
       });
-      
-      // Download ZIP file
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Invoices_Batch_${new Date().toISOString().slice(0, 10)}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
 
-      // Remove loading message
-      document.body.removeChild(loadingMsg);
-      
-      alert(`Successfully downloaded ${selectedInvoicesData.length} invoices as ZIP file!`);
+      if (response.ok) {
+        alert('Invoice saved successfully!');
+      } else {
+        const error = await response.text();
+        alert(`Error saving invoice: ${error}`);
+      }
     } catch (error) {
-      console.error('ZIP generation error:', error);
-      alert('Error generating ZIP file. Please try again.');
+      console.error('Error saving invoice:', error);
+      alert('Error saving invoice. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Handle select all
-  const handleSelectAll = (checked: boolean) => {
-    setSelectAll(checked);
-    if (checked) {
-      setSelectedInvoices(invoices.map((_, idx) => idx));
-    } else {
-      setSelectedInvoices([]);
-    }
-  };
-
-  // Handle select one
-  const handleSelectOne = (idx: number, checked: boolean) => {
-    if (checked) {
-      setSelectedInvoices(prev => [...prev, idx]);
-    } else {
-      setSelectedInvoices(prev => prev.filter(i => i !== idx));
-      setSelectAll(false);
-    }
-  };
+  // EditableSpan wrapper - stable component that doesn't re-render on value changes
+  const EditableSpanWrapper = React.memo(({ field, style = {}, placeholder = "" }: { field: string, style?: any, placeholder?: string }) => {
+    // Get current value from state
+    const currentValue = invoiceData[field] || "";
+    
+    return (
+      <EditableSpan
+        field={field}
+        initialValue={currentValue}
+        onChange={handleInputChange}
+        style={style}
+        placeholder={placeholder}
+      />
+    );
+  }, (prevProps, nextProps) => {
+    // Only re-render if field or style changes - ignore all value changes
+    return prevProps.field === nextProps.field &&
+           JSON.stringify(prevProps.style) === JSON.stringify(nextProps.style);
+  });
+  
+  EditableSpanWrapper.displayName = 'EditableSpanWrapper';
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100">
-      {/* Top Bar */}
-      <div className="flex items-center justify-center px-8 py-0 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 shadow-md border-b" style={{ height: 72 }}>
-        <h1 className="text-xl font-bold text-white text-center w-full">Invoice Creation</h1>
-      </div>
-      <main className="flex flex-1 overflow-hidden">
-        {/* Left: Invoice List */}
-        <aside className="w-64 bg-gradient-to-b from-white via-orange-50 to-orange-100 border-r border-gray-200 flex flex-col rounded-tr-xl rounded-br-xl shadow-md">
-          <div className="p-4 border-b font-bold text-lg text-orange-700 tracking-wide bg-white/80 rounded-tr-xl flex items-center gap-2">
-            <input type="checkbox" checked={selectAll} onChange={e => handleSelectAll(e.target.checked)} />
-            <span>Invoice List</span>
-          </div>
-          <div className="flex flex-row items-center justify-between px-4 py-2">
-            <div className="flex gap-2">
-            <button
-              className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1 rounded transition text-xs shadow"
-              onClick={handleDownloadAll}
-              disabled={selectedInvoices.length === 0}
-            >
-              Download All
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header with Create via Excel button */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Create Invoice - Direct Entry</h1>
+          <Link href="/create-invoice-excel">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-lg transition shadow-lg">
+              Create via Excel
             </button>
-            </div>
-            <span className="text-xs text-gray-500">{selectedInvoices.length} selected</span>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {(previewSource === 'backend' && backendInvoices.length > 0 ? backendInvoices : invoices).length === 0 && (
-              <div className="p-4 text-xs text-gray-400">No invoices loaded.</div>
-            )}
-            {(previewSource === 'backend' && backendInvoices.length > 0 ? backendInvoices : invoices).map((inv, idx) => (
-              <div
-                key={idx}
-                className={`cursor-pointer px-4 py-3 border-b text-sm transition-all duration-150 rounded-md my-2 mx-2 font-medium shadow-sm ${selectedIdx === idx ? "bg-orange-200 font-bold text-orange-900 ring-2 ring-orange-400" : "hover:bg-orange-50 hover:shadow-md text-gray-800"}`}
-                onClick={() => setSelectedIdx(idx)}
-                style={{ boxShadow: selectedIdx === idx ? '0 2px 8px rgba(255,140,0,0.10)' : undefined }}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedInvoices.includes(idx)}
-                    onChange={e => { e.stopPropagation(); handleSelectOne(idx, e.target.checked); }}
-                    onClick={e => e.stopPropagation()}
-                  />
-                                          <span>{inv["In_no"] || inv.invoiceNo || 'No Invoice Number'}</span>
-                </div>
-                <button
-                  className="ml-2 bg-orange-500 hover:bg-orange-700 text-white font-bold px-2 py-1 rounded text-xs shadow"
-                  onClick={e => { e.stopPropagation(); handleDownloadInvoice(inv, idx); }}
-                >
-                  Download
-                </button>
-              </div>
-            ))}
-          </div>
-        </aside>
-        {/* Center: Invoice Preview */}
-        <section className="flex-1 p-6 overflow-y-auto bg-gray-50 flex flex-col items-center">
-          {/* Invoice Preview */}
-          {showPreview && invoices.length > 0 && (
-            previewSource === 'backend' && backendInvoices.length > 0 ? (
-              <InvoicePreview data={{
-                ...backendInvoices[selectedIdx],
-                
-                invoiceNo: backendInvoices[selectedIdx]?.["In_no"] || backendInvoices[selectedIdx]?.invoiceNo || ""
-              }} />
-            ) : invoices.length > 0 ? (
-              <InvoicePreview data={{
-                ...invoices[selectedIdx],
-                "In_no": invoices[selectedIdx]?.["In_no"] || invoices[selectedIdx]?.invoiceNo || "",
-                invoiceNo: invoices[selectedIdx]?.["In_no"] || invoices[selectedIdx]?.invoiceNo || ""
-              }} />
-            ) : (
-              <div className="text-gray-400 text-center w-full mt-24">Upload an Excel file to preview invoices.</div>
-            )
-          )}
-          {!showPreview && (
-            <div className="text-gray-400 text-center w-full mt-24">Upload an Excel file to preview invoices.</div>
-          )}
-        </section>
-        {/* Right: InvoiceForm Sidebar */}
-        <aside className="w-80 bg-white border-l border-gray-200 flex flex-col items-center p-6">
-          <InvoiceForm onChange={handleFormChange} onPreview={handlePreviewClick} />
-        </aside>
-      </main>
-      
-      {/* Warning Dialog for Duplicate Upload */}
-      {showWarningDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
-            <div className="flex items-center mb-4">
-              <div className="flex-shrink-0">
-                <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-lg font-semibold text-gray-900">Duplicate Invoice Warning</h3>
-              </div>
-            </div>
-            <div className="mt-2">
-              {hasUploaded ? (
-                <>
-                  <p className="text-sm text-gray-600">
-                    This data has already been uploaded to the database. Creating duplicate invoices will:
-                  </p>
-                  <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
-                    <li>Generate new invoice numbers</li>
-                    <li>Create duplicate entries in the database</li>
-                    <li>Increase the invoice counter</li>
-                  </ul>
-                </>
-              ) : duplicateInvoices.length > 0 ? (
-                <>
-                  <p className="text-sm text-gray-600">
-                    Found {duplicateInvoices.length} invoice(s) with <strong>EVERY SINGLE FIELD IDENTICAL</strong> in the database:
-                  </p>
-                  <div className="mt-2 max-h-32 overflow-y-auto">
-                    {duplicateInvoices.map((dup, idx) => (
-                      <div key={idx} className="text-xs text-gray-600 bg-gray-50 p-2 rounded mb-1">
-                        <strong>Client:</strong> {dup.new.clientName} | 
-                        <strong>Date:</strong> {dup.new.invoiceDate} | 
-                        <strong>Amount:</strong> ₹{dup.new.totalAmount} | 
-                        <strong>Share:</strong> {dup.new.share}% | 
-                        <strong>GST:</strong> {dup.new.gstType} @ {dup.new.gstRate}% | 
-                        <strong>Items:</strong> {dup.new.items?.length || 0}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-sm text-gray-600">
-                    These invoices have <strong>EVERY SINGLE FIELD IDENTICAL</strong> to existing invoices. Creating them will generate new invoice numbers and create exact duplicate entries.
-                  </p>
-                </>
-              ) : null}
-              <p className="mt-3 text-sm font-medium text-gray-900">
-                Do you want to proceed with uploading this data?
-              </p>
-            </div>
-            <div className="mt-6 flex gap-3 justify-end">
-              <button
-                onClick={handleWarningCancel}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleWarningConfirm}
-                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-              >
-                Proceed & Upload
-              </button>
-            </div>
-          </div>
+          </Link>
         </div>
-      )}
 
-      {/* Footer */}
-      <footer className="bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 text-white py-4 text-center shadow-md">
-        <div className="text-center text-white text-sm py-2">
-          Powered by{' '}
-          <a 
-            href="https://highflyersinfotech.com/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-white hover:text-orange-100 underline font-medium"
+        {/* Download Button */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={handleDownloadPDF}
+            disabled={isSaving}
+            className="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Highflyers Infotech
-          </a>
+            {isSaving ? 'Saving...' : 'Download PDF & Save'}
+          </button>
         </div>
-      </footer>
+
+        {/* Editable Invoice Preview - Also used for PDF generation */}
+        <div
+          ref={previewRef}
+          className="w-[800px] mx-auto bg-white shadow-lg text-black"
+          style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
+          id="invoice-preview-container"
+        >
+          {/* Header - Single Image */}
+          <div style={{ width: '100%', margin: 0, padding: 0 }}>
+            <img 
+              src="/inovice_formatting/invoice-header.png" 
+              alt="Invoice Header" 
+              style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
+            />
+          </div>
+
+          {/* Main Content Box - Editable */}
+          <div style={{ width: '100%', padding: '1rem', fontSize: '12px' }}>
+            {/* Top Header Section */}
+            <div style={{ border: '2px solid #008000', padding: '8px', marginBottom: '1rem' }}>
+              {/* Top Line - Invoice No (left) and Date (right) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ display: 'inline-block' }}>
+                  {DISPLAY_NAMES['In_no']}: <EditableSpanWrapper field="In_no" style={{ width: '120px', display: 'inline-block' }} />
+                </span>
+                <span style={{ display: 'inline-block' }}>
+                  {DISPLAY_NAMES.date}: <EditableSpanWrapper field="invoiceDate" style={{ width: '100px', display: 'inline-block' }} />
+                </span>
+              </div>
+              
+              {/* Recipient/Sender Details Section */}
+              <div style={{ marginBottom: '8px', lineHeight: '1.6' }}>
+                {/* First Line */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', width: '100%' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.mrRaRa}</span>
+                  <EditableSpanWrapper field="mrRaRa" style={{ flex: '1', minWidth: '200px' }} />
+                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.place}</span>
+                  <EditableSpanWrapper field="place" style={{ flex: '1', minWidth: '200px' }} />
+                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.to}</span>
+                </div>
+                
+                {/* Second Line */}
+                <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap', marginBottom: '8px', lineHeight: '1.6', width: '100%' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.loveGreetings}</span>
+                  <EditableSpanWrapper field="raRaNo" style={{ flex: 1, marginLeft: '8px', marginRight: '8px' }} />
+                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
+                  <span data-field="chequeDraftNo">
+                    <EditableSpanWrapper field="chequeDraftNo" style={{ width: '100px', marginLeft: '8px', marginRight: '8px' }} />
+                  </span>
+                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.received}</span>
+                </div>
+                
+                {/* Remaining lines */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', lineHeight: '1.6' }}>
+                  <div style={{ width: '60%' }}>
+                    <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.salesDetails}</div>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ marginRight: '8px' }}>{DISPLAY_NAMES.deposit}:</span>
+                      <EditableSpanWrapper field="deposit" style={{ flex: 1 }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Middle Section - Two Side-by-Side Tables */}
+            <div className="w-full border-2 border-green-700 mb-4" style={{ borderColor: '#008000' }}>
+              <div className="grid grid-cols-12">
+                {/* Left Table - Item Details */}
+                <div className="col-span-9 border-r-2" style={{ borderColor: '#008000' }}>
+                  {/* Header Row */}
+                  <div className="grid grid-cols-7 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.rs}</div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.paise}</div>
+                    <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.piece}</div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.crates}</div>
+                    <div className="col-span-1 p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.perUnitPrice}</div>
+                  </div>
+                  {/* Content Rows - Editable */}
+                  {Array(13).fill(0).map((_, i) => {
+                    const rowTotal = calculateRowTotal(i);
+                    return (
+                      <div key={i} className="grid grid-cols-7 border-b text-center" style={{ borderColor: '#008000' }}>
+                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{rowTotal.rs !== null ? rowTotal.rs : ''}</span>
+                        </div>
+                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{rowTotal.paise !== null ? rowTotal.paise : ''}</span>
+                        </div>
+                        <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                          <EditableSpanWrapper field={`row${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                          <EditableSpanWrapper field={`row${i}_item`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                          <EditableSpanWrapper field={`row${i}_piece`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="col-span-1 p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                          <EditableSpanWrapper field={`row${i}_price`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Left Table - Totals Section (Auto-calculated) */}
+                  <div className="grid grid-cols-7 border-t-2 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalSales().rs !== null ? calculateTotalSales().rs : ''}</span>
+                    </div>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalSales().paise !== null ? calculateTotalSales().paise : ''}</span>
+                    </div>
+                    <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalSales}</div>
+                  </div>
+                  <div className="grid grid-cols-7 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().rs > 0 ? calculateTotalExpenses().rs : ''}</span>
+                    </div>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().paise > 0 ? calculateTotalExpenses().paise : ''}</span>
+                    </div>
+                    <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.expenses}</div>
+                  </div>
+                  <div className="grid grid-cols-7 text-xs font-bold" style={{ borderColor: '#008000', backgroundColor: '#f0f9ff' }}>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                        {calculateNetBalance().rs !== null ? `${calculateNetBalance().isNegative ? '-' : ''}${calculateNetBalance().rs}` : ''}
+                      </span>
+                    </div>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{calculateNetBalance().paise !== null ? calculateNetBalance().paise : ''}</span>
+                    </div>
+                    <div className="col-span-5 p-2 text-left font-bold" style={{ borderColor: '#008000', borderBottom: 'none' }}>{DISPLAY_NAMES.netBalance}</div>
+                  </div>
+                </div>
+
+                {/* Right Table - Expenses */}
+                <div className="col-span-3">
+                  {/* Header Row - Using 5 columns: Details (3), Rs (1), Paise (1) */}
+                  <div className="grid grid-cols-5 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
+                    <div className="col-span-3 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.rs}</div>
+                    <div className="col-span-1 p-1">{DISPLAY_NAMES.paise}</div>
+                  </div>
+                  {/* Expense Rows */}
+                  {[DISPLAY_NAMES.commission, DISPLAY_NAMES.porterage, DISPLAY_NAMES.carRental, DISPLAY_NAMES.bundleExpenses, DISPLAY_NAMES.hundekariExpenses, DISPLAY_NAMES.spaceRent, DISPLAY_NAMES.warai, DISPLAY_NAMES.otherExpenses].map((expense, idx) => (
+                    <div key={idx} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#008000' }}>
+                      <div className="col-span-3 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>{expense}</div>
+                      <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                        <EditableSpanWrapper field={`expense${idx}_rs`} style={{ width: '100%', minHeight: '22px' }} />
+                      </div>
+                      <div className="col-span-1 p-1" style={{ minHeight: '22px' }}>
+                        <EditableSpanWrapper field={`expense${idx}_paise`} style={{ width: '100%', minHeight: '22px' }} />
+                      </div>
+                    </div>
+                  ))}
+                  {/* Additional empty rows */}
+                  {Array(5).fill(0).map((_, i) => (
+                    <div key={`empty-${i}`} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#008000' }}>
+                      <div className="col-span-3 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                        <EditableSpanWrapper field={`empty${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
+                      </div>
+                      <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                        <EditableSpanWrapper field={`empty${i}_rs`} style={{ width: '100%', minHeight: '22px' }} />
+                      </div>
+                      <div className="col-span-1 p-1" style={{ minHeight: '22px' }}>
+                        <EditableSpanWrapper field={`empty${i}_paise`} style={{ width: '100%', minHeight: '22px' }} />
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Right Table - Total Expenses Only (Auto-calculated) */}
+                  <div className="grid grid-cols-5 border-t-2 text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                    <div className="col-span-3 border-r p-2 text-left" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalExpenses}</div>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().rs || '0'}</span>
+                    </div>
+                    <div className="col-span-1 p-2 text-right" style={{ borderColor: '#008000' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().paise || '0'}</span>
+                    </div>
+                  </div>
+                  {/* Horizontal line after Total Expenses */}
+                  <div className="border-b-2" style={{ borderColor: '#008000', width: '100%', marginTop: '8px' }}></div>
+                  {/* Errors and omissions text below Total Expenses */}
+                  <div className="p-2 text-xs italic" style={{ textAlign: 'center', marginTop: '8px' }}>
+                    {DISPLAY_NAMES.errorsOmissions}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Combined Bottom Table */}
+            <div className="border-2 mb-4" style={{ borderColor: '#008000' }}>
+              <div className="grid grid-cols-12" style={{ minHeight: '150px' }}>
+                {/* Left Side - Terms and Conditions */}
+                <div className="col-span-5 p-3" style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.salesSlipSent}</div>
+                  <div style={{ marginBottom: '4px' }}>
+                    {DISPLAY_NAMES.amountOfSlip}
+                    <EditableSpanWrapper field="amountOfSlipName" style={{ width: '150px', display: 'inline-block', marginLeft: '8px' }} />
+                  </div>
+                  <div style={{ marginBottom: '4px' }}>
+                    {DISPLAY_NAMES.toBeCollected}
+                    <EditableSpanWrapper field="toBeCollectedPlace" style={{ width: '100px', display: 'inline-block', marginLeft: '8px' }} />
+                    .
+                  </div>
+                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.ifNotReceived}</div>
+                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.noComplaints}</div>
+                  <div style={{ marginTop: '8px', fontWeight: 'bold' }}>{DISPLAY_NAMES.thanks}</div>
+                </div>
+
+                {/* Center - Grand Total (showing Net Balance) */}
+                <div className="col-span-2 p-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: '12px', paddingLeft: '0', paddingRight: '0' }}>
+                  <div className="border-2 p-2" style={{ borderColor: '#008000', width: '200%', minWidth: '350px', height: '45px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', backgroundColor: '#f0f9ff', marginRight: '-280px', padding: '8px 12px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.grandTotal}</span>
+                    <span className="bg-red-600 text-white px-2 py-0.5 text-xs font-bold" style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</span>
+                    <span style={{ minWidth: '120px', flex: 1, minHeight: '18px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right' }}>
+                      {calculateNetBalance().rs !== null ? `${calculateNetBalance().isNegative ? '-' : ''}${calculateNetBalance().rs}.${String(calculateNetBalance().paise || '0').padStart(2, '0')}` : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right Side - Signature */}
+                <div className="col-span-5 p-3 flex flex-col justify-end items-end" style={{ fontSize: '11px' }}>
+                  <div className="flex flex-col justify-end items-center" style={{ textAlign: 'center' }}>
+                    <div className="text-xs mb-2">{DISPLAY_NAMES.yoursSincerely}</div>
+                    <div className="text-xs">{DISPLAY_NAMES.signatureName}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-} 
+}
+
+export default CreateInvoiceDirectPage;

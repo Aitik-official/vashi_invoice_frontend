@@ -136,6 +136,71 @@ interface InvoiceData {
   share?: string | number; // Added for distribution percent
 }
 
+// Display Names Configuration - Maps variable names to display names
+export const DISPLAY_NAMES = {
+  // Header fields
+  date: 'तारीख',
+  invoiceDate: 'Date',
+  invoiceNo: 'पावती क्र.',
+  'In_no': 'पावती क्र. ',
+  
+  // Recipient/Sender fields
+  mrRaRa: 'श्री. रा. रा.',
+  place: 'मु.',
+  to: 'यांसी',
+  chequeDraftNo: 'चे डाग',
+  received: 'आले ते मिळाले.',
+  deposit: 'जमा',
+  raRaNo: 'Ra. Ra. No./Mo. No.',
+  
+  // Table headers - Left table
+  rs: 'रुपये',
+  paise: 'पैसे',
+  detailsOfGoods: 'मालाचा तपशील',
+  item: 'Item',
+  piece: 'नग',
+  crates: 'डाग',
+  perUnitPrice: 'दर',
+  rate: 'Rate',
+  
+  // Table headers - Right table
+  detailsOfExpenses: 'खर्चाचा तपशील',
+  totalExpenses: 'एकुण खर्च',
+  
+  // Expense types
+  commission: 'कमिशन',
+  porterage: 'हमाली तोलाई लेव्ही',
+  carRental: 'मोटर भाडे',
+  bundleExpenses: 'बंडल खर्च',
+  hundekariExpenses: 'हुंडेकरी खर्',
+  spaceRent: 'जागा भाडे',
+  warai: 'वाराई',
+  otherExpenses: 'इतर खर्च',
+  
+  // Totals
+  totalSales: 'एकुण विक्री',
+  expenses: 'खर्च वजा',
+  netBalance: 'नक्की शिल्लक',
+  grandTotal: 'नक्की शिल्लक',
+  
+  // Terms and conditions
+  salesSlipSent: 'येणेप्रमाणे मालाची विक्री करून पट्टी पाठविली आहे, तपासून घेणे.',
+  amountOfSlip: 'सदरहू पट्टीचे पैसे श्री.',
+  toBeCollected: 'मुं.',
+  ifNotReceived: 'यांजकडून घेणे . नं मिळाल्यास आठ दिवसांचे आत कळविणे.',
+  noComplaints: 'नंतर तक्रार चालणार नाही.',
+  thanks: 'सहकार्याबद्दल धन्यवाद!',
+  
+  // Errors and signature
+  errorsOmissions: '(चुक भुलं देणे घेणे )',
+  yoursSincerely: 'आपले नम्र ,',
+  signatureName: 'श्री. मच्छिंद्र बबन भास्कर',
+  
+  // Other text
+  salesDetails: 'त्याचे विक्री चे तपशील खालीलप्रमाणे आहे.',
+  loveGreetings: 'सप्रेम नमस्कार विनंती विशेष आज रोजी आपले रे. र. नं. / मो.नं.',
+};
+
 const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, isPdfExport = false }) => {
 
   const previewRef = useRef<HTMLDivElement>(null);
@@ -293,7 +358,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
       );
       
       // Create blob and download
-      const blob = new Blob([pdfData], { type: 'application/pdf' });
+      const blob = new Blob([pdfData.slice()], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -371,224 +436,192 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
       )}
       <div
         ref={previewRef}
-        className="w-[800px] mx-auto bg-white shadow-lg p-6 text-black"
-        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box' }}
+        className="w-[800px] mx-auto bg-white shadow-lg text-black"
+        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
       >
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem' }}>
-          <div style={{ width: '120px' }}>
-            <img src="/inovice_formatting/1stfflogo.jpg" alt="Logo" style={{ width: '100%', height: 'auto' }} />
-          </div>
-          <div style={{ textAlign: 'right', fontSize: '11px', lineHeight: '1.4' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>FIRST FILM STUDIOS LLP</div>
-            <div>26-104, RIDDHI SIDHI, CHS, CSR COMPLEX, OLD MHADA,</div>
-            <div>KANDIVALI WEST, MUMBAI - 400067, MAHARASHTRA</div>
-            <div>{email}</div>
-            <div>GST- {gst}</div>
-            <div>PAN No:- {pan}</div>
-            <div>LLP Reg. No.- {regNo}</div>
-          </div>
+        {/* Header - Single Image replacing logo and company details - Full width from top */}
+        <div style={{ width: '100%', margin: 0, padding: 0 }}>
+          <img 
+            src="/inovice_formatting/invoice-header.png" 
+            alt="Invoice Header" 
+            style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
+          />
         </div>
 
-        {/* Main Content Box */}
-        <div style={{ width: '100%' }}>
-          {/* Top Details - Two Columns */}
-          <div style={{ display: 'flex', width: '100%', fontSize: '12px', lineHeight: '1.6', marginBottom: '1rem' }}>
-            {/* Left Column */}
-            <div style={{ width: '62%', paddingRight: '2rem' }}>
-              <div style={{ display: 'flex' }}>
-                <span style={{ width: '30px' }}>M/s</span>
-                <div style={{ fontWeight: 'bold' }}>{clientName}</div>
-              </div>
-              <div style={{ marginLeft: '30px', whiteSpace: 'pre-line' }}>{clientAddress}</div>
-              <div style={{ display: 'flex', marginTop: '1rem' }}>
-                <span style={{ width: '120px' }}>PAN No.</span><span>{panNo}</span>
-              </div>
-              <div style={{ display: 'flex' }}>
-                <span style={{ width: '120px' }}>GSTIN No.</span><span>{gstinNo}</span>
-              </div>
-              <div style={{ display: 'flex' }}>
-                <span style={{ width: '120px' }}>Property</span><span>{property}</span>
-              </div>
-              <div style={{ display: 'flex' }}>
-                <span style={{ width: '120px' }}>Centre</span><span>{centre}</span>
-              </div>
-              <div style={{ display: 'flex' }}>
-                <span style={{ width: '120px' }}>Place of Service</span><span>{placeOfService}</span>
-              </div>
-              <div style={{ display: 'flex' }}>
-                <span style={{ width: '120px' }}>Business Territory</span><span>{businessTerritory}</span>
-              </div>
-            </div>
-            {/* Right Column */}
-            <div style={{ width: '38%', paddingLeft: '0' }}>
-                <div style={{ display: 'flex' }}><span style={{ width: '110px' }}>Invoice No.</span><span style={{ fontWeight: 'bold' }}>{displayInvoiceNo}</span></div>
-                <div style={{ display: 'flex' }}><span style={{ width: '110px' }}>Invoice Date</span><span>{invoiceDate}</span></div>
-                <div style={{ display: 'flex' }}><span style={{ width: '110px' }}>Movie Name</span><span style={{ fontWeight: 'bold' }}>{movieName}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
-                    <div><span style={{ width: '110px', display: 'inline-block' }}>Movie Version</span><span>{movieVersion}</span></div>
-                    <div style={{ fontWeight: 'bold' }}>{language}</div>
-                </div>
-                <div style={{ display: 'flex' }}><span style={{ width: '110px' }}>Screen Formate</span><span>{screenFormat}</span></div>
-                <div style={{ display: 'flex' }}><span style={{ width: '110px' }}>Release Week</span><span>{week}</span></div>
-                <div style={{ display: 'flex' }}><span style={{ width: '110px' }}>Cinema Week</span><span>{cinemaWeek}</span></div>
-                <div style={{ display: 'flex' }}>
-                    <span style={{ width: '110px' }}>Screening Date</span>
-                    <span style={{ whiteSpace: 'nowrap' }}>From <span style={{ fontWeight: 'bold' }}>{formatDate(screeningDateFrom)}</span> To <span style={{ fontWeight: 'bold' }}>{formatDate(screeningDateTo)}</span></span>
-                </div>
-            </div>
-          </div>
-
-          {/* Wrapper for table and amount in words */}
-          <div style={{ border: '2px solid black', fontSize: '11px' }}>
-            {/* Main Table Flex Container */}
-            <div style={{ display: 'flex', width: '100%' }}>
-                {/* Left Section */}
-                <div style={{ width: '62%', borderRight: '2px solid black', position: 'relative' }}>
-                    {/* THIS IS THE NEW DIV FOR THE CONTINUOUS VERTICAL LINE */}
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: '45%', // Position after Date (25) + Show (10) + Aud (10)
-                        width: '1px',
-                        backgroundColor: 'black',
-                        transform: 'translateX(-0.5px)' // Center the line precisely
-                    }}></div>
-                    {/* Header */}
-                    <div style={{ display: 'flex', fontWeight: 'bold', borderBottom: '1px solid black' }}>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '25%', borderRight: '1px solid black', borderBottom: '0' }}>Date</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '10%', borderRight: '1px solid black', borderBottom: '0' }}>Show</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '10%', borderBottom: '0' }}>Aud.</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '20%', borderRight: '1px solid black', borderBottom: '0' }}>Collection</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '35%', borderBottom: '0' }}>Deduction</div>
-                    </div>
-                    {/* Body */}
-                    <div style={{borderBottom: '1px solid black'}}>
-                      {tableRows.map((row, index) => (
-                          <div key={index} style={{ display: 'flex' }}>
-                              <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '25%', borderRight: '1px solid black', borderBottom: '0' }}>{formatDate(row.date)}</div>
-                              <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '10%', borderRight: '1px solid black', borderBottom: '0' }}>{row.show !== undefined && row.show !== null ? row.show : ''}</div>
-                              <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '10%', borderBottom: '0' }}>{row.aud !== undefined && row.aud !== null ? row.aud : ''}</div>
-                              <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '20%', borderRight: '1px solid black', borderBottom: '0' }}>
-                                  {(row.collection || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </div>
-                              <div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '35%', padding: '0 4px', borderBottom: '0' }}>
-                                  {index === 0 && showTaxVal > 0 && (
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', lineHeight: `${rowHeight}px`}}>
-                                          <span>Show Tax</span>
-                                          <span style={{ textAlign: 'right', paddingRight: '4px' }}>{showTaxVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                      </div>
-                                  )}
-                              </div>
-                          </div>
-                      ))}
-                    </div>
-                    {/* Total Row */}
-                    <div style={{ display: 'flex', fontWeight: 'bold' }}>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '25%', borderRight: '1px solid black', borderBottom: '0' }}>Total</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '10%', borderRight: '1px solid black', borderBottom: '0' }}>{totalShowVal}</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '10%', borderBottom: '0' }}>{totalAudVal}</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '20%', borderRight: '1px solid black', borderBottom: '0' }}>{totalCollectionVal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-                        <div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '35%', borderBottom: '0' }}>{totalDeduction.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-                    </div>
-                    {/* HSN/SAC Section */}
-                    <div style={{ display: 'flex', borderTop: '2px solid black' }}>
-                       {/* Left Column (Labels) */}
-                        <div style={{ width: '45%' }}>
-                            <div style={{ ...leftCellStyle, fontWeight: 'bold', borderBottom: '1px solid black' }}>
-                                <span className="pdf-cell-fix">HSN/SAC Code</span>
-                            </div>
-                            <div style={{ ...leftCellStyle, fontWeight: 'bold' }}>
-                                <span className="pdf-cell-fix">Description</span>
-                            </div>
-                        </div>
-                        {/* Right Column (Values) */}
-                        <div style={{ width: '55%' }}>
-                            <div style={{ ...leftCellStyle, borderBottom: '1px solid black' }}>
-                                <span className="pdf-cell-fix">{hsnSacCode}</span>
-                            </div>
-                            <div style={{ ...leftCellStyle }}>
-                                <span className="pdf-cell-fix">{description}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Section */}
-                <div style={{ width: '38%' }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', fontWeight: 'bold', borderBottom: '1px solid black' }}>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}>Particulars</div>
-                        <div className="pdf-cell-fix" style={{ ...centerCellStyle, width: '40%', borderBottom: '0' }}>Amount</div>
-                    </div>
-                    {/* Body */}
-                    <div style={{ display: 'flex', borderTop: '1px solid black' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}>Total Collection</div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}>{totalCollectionVal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
-                    <div style={{ display: 'flex' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}>Total Deduction</div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}>{totalDeduction.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
-                    <div style={{ display: 'flex', borderBottom: '2px solid black' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}>Net Collection</div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}>{netCollection.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
-                    <div style={{ display: 'flex' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, height: rowHeight, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}></div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}></div></div>
-                    <div style={{ display: 'flex' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}>Dist. Consideration @{distPercent}%</div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}>{distConsideration.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
-                    <div style={{ display: 'flex' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, height: rowHeight, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}></div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}></div></div>
-                    <div style={{ display: 'flex', borderTop: '2px solid black' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', fontWeight:'bold', borderRight: '1px solid black', borderBottom: '0' }}>Taxable Amount</div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', fontWeight:'bold', borderBottom: '0' }}>{taxableAmount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
-                    
-                    {gstType === 'IGST' ? (
-                        <div style={{ display: 'flex', borderTop: '1px solid black' }}>
-                            <div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0', height: rowHeight * 2, lineHeight: `${rowHeight * 2}px` }}>IGST @ {igstRateNum}%</div>
-                            <div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0', height: rowHeight * 2, lineHeight: `${rowHeight * 2}px` }}>{igstVal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-                        </div>
-                    ) : (
-                        <>
-                            <div style={{ display: 'flex', borderTop: '1px solid black' }}>
-                                <div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0', height: rowHeight * 1.5, lineHeight: `${rowHeight * 1.5}px` }}>CGST @ {cgstRateNum}%</div>
-                                <div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0', height: rowHeight * 1.5, lineHeight: `${rowHeight * 1.5}px` }}>{cgstVal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-                            </div>
-                            <div style={{ display: 'flex', borderTop: '1px solid black' }}>
-                                <div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0', height: rowHeight * 1.5, lineHeight: `${rowHeight * 1.5}px` }}>SGST @ {sgstRateNum}%</div>
-                                <div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0', height: rowHeight * 1.5, lineHeight: `${rowHeight * 1.5}px` }}>{sgstVal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-                            </div>
-                        </>
-                    )}
-
-                    <div style={{ display: 'flex', fontWeight: 'bold', borderTop: '2px solid black' }}><div className="pdf-cell-fix" style={{ ...leftCellStyle, width: '60%', borderRight: '1px solid black', borderBottom: '0' }}>Net Amount</div><div className="pdf-cell-fix" style={{ ...rightCellStyle, width: '40%', borderBottom: '0' }}>{netAmountVal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
-                </div>
-            </div>
-
-            {/* Amount in Words */}
-            <div style={{ borderTop: '2px solid black', padding: '4px 8px', fontWeight: 'bold' }}>
-                Amount in Words: {amountInWords}
-            </div>
-          </div>
-
-
-           {/* Remarks, Terms, Bank */}
-           <div style={{ marginTop: '1rem', fontSize: '11px', lineHeight: '1.5' }}>
-                <div><b>Remark:</b> {remark}</div>
-                <div style={{ marginTop: '0.5rem' }}><b>Terms & Conditions :-</b></div>
-                <div style={{ paddingLeft: '1rem' }}>
-                    1. Payment is due within 14 days from the date invoice.Interest @18% pa. will be charged for payment delayed beyond that period.<br/>
-                    2. All cheques / drafts should be crossed and made payable to<br/>
-                    <div style={{ paddingLeft: '1rem' }}>
-                        <b>FIRST FILM STUDIOS LLP</b><br/>
-                        Bank Detail: - HDFC BANK LIMITED A/C No.: <b>50200099601176</b> IFSC CODE: <b>HDFC0000543</b><br/>
-                        BRANCH: AHURA CENTRE, ANDHERI WEST
-                    </div>
-                    3. Subject to Mumbai juridiction
-                </div>
+        {/* Main Content Box - New Layout Matching Image */}
+        <div style={{ width: '100%', padding: '1rem', fontSize: '12px' }}>
+          {/* Top Header Section */}
+          <div style={{ border: '2px solid #008000', padding: '8px', marginBottom: '1rem' }}>
+            {/* Top Right - Date */}
+            <div style={{ textAlign: 'right', marginBottom: '8px' }}>
+              <span style={{ paddingRight: '40px', display: 'inline-block' }}>{DISPLAY_NAMES.date}: {invoiceDate || ''}</span>
             </div>
             
-            {/* Footer: Stamp and Signature */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', marginTop: '2rem', minHeight: '120px' }}>
-                 <div style={{ marginRight: '50px' }}>
-                    <img src="/inovice_formatting/Stamp_mum.png" alt="Stamp" style={{ width: '110px', height: '100px' }} />
-                 </div>
-                 <div style={{ textAlign: 'center', fontSize: '12px' }}>
-                     <b>For FIRST FILM STUDIOS LLP</b>
-                     <div style={{ height: '60px', margin: '8px 0' }}>
-                        <img src="/inovice_formatting/sign.png" alt="Signature" style={{ height: '100%', width: 'auto' }} />
-                     </div>
-                     <div>(Authorised Signatory)</div>
-                 </div>
+            {/* Recipient/Sender Details Section */}
+            <div style={{ marginBottom: '8px', lineHeight: '1.6' }}>
+              {/* First Line - Mr. Ra. Ra., Place, To all in single line with no extra spacing */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span>{DISPLAY_NAMES.mrRaRa}</span>
+                <span style={{ borderBottom: '1px solid #008000', width: '120px', minHeight: '16px', display: 'inline-block' }}></span>
+                <span>{DISPLAY_NAMES.place}</span>
+                <span style={{ borderBottom: '1px solid #008000', width: '100px', minHeight: '16px', display: 'inline-block' }}></span>
+                <span>{DISPLAY_NAMES.to}</span>
+                <span style={{ borderBottom: '1px solid #008000', width: '100px', minHeight: '16px', display: 'inline-block' }}></span>
+              </div>
+              
+              {/* Second Line - All text in single continuous line with blank after Mo. No. and Cheque/Draft No. */}
+              <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap', marginBottom: '8px', lineHeight: '1.6', width: '100%' }}>
+                <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.loveGreetings}</span>
+                <span style={{ borderBottom: '1px solid #008000', flex: 1, minHeight: '16px', marginLeft: '8px', marginRight: '8px', display: 'inline-block' }}></span>
+                <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
+                <span style={{ borderBottom: '1px solid #008000', width: '100px', minHeight: '16px', marginLeft: '8px', marginRight: '8px', display: 'inline-block' }}></span>
+                <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.received}</span>
+              </div>
+              
+              {/* Remaining lines */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', lineHeight: '1.6' }}>
+                <div style={{ width: '60%' }}>
+                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.salesDetails}</div>
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ marginRight: '8px' }}>{DISPLAY_NAMES.deposit}:</span>
+                    <span style={{ borderBottom: '1px solid #008000', flex: 1, minHeight: '16px' }}></span>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Middle Section - Two Side-by-Side Tables using Grid */}
+          <div className="w-full border-2 border-green-700 mb-4" style={{ borderColor: '#008000' }}>
+            <div className="grid grid-cols-12">
+              {/* Left Table - Item Details (increased width) */}
+              <div className="col-span-8 border-r-2" style={{ borderColor: '#008000' }}>
+                {/* Header Row - 7 columns with Per unit price */}
+                <div className="grid grid-cols-7 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
+                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</div>
+                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.paise}</div>
+                  <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
+                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.item}</div>
+                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.piece}</div>
+                  <div className="col-span-1 p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.perUnitPrice}</div>
+                </div>
+                {/* Content Rows - Increased rows to utilize blank white space */}
+                {Array(13).fill(0).map((_, i) => (
+                  <div key={i} className="grid grid-cols-7 border-b text-center" style={{ borderColor: '#008000' }}>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                  </div>
+                ))}
+                
+                {/* Left Table - Totals Section: Rs. value, Paise value, Parameter names (vertical borders extending to bottom edge) */}
+                <div className="grid grid-cols-7 border-t-2 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
+                  <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalSales}</div>
+                </div>
+                <div className="grid grid-cols-7 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
+                  <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.expenses}</div>
+                </div>
+                <div className="grid grid-cols-7 text-xs font-bold" style={{ borderColor: '#008000', backgroundColor: '#f0f9ff' }}>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}></div>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}></div>
+                  <div className="col-span-5 p-2 text-left font-bold" style={{ borderColor: '#008000', borderBottom: 'none' }}>{DISPLAY_NAMES.netBalance}</div>
+                </div>
+              </div>
+
+              {/* Right Table - Expenses (reduced width) */}
+              <div className="col-span-4">
+                {/* Header Row - 3 columns without Per unit price */}
+                <div className="grid grid-cols-3 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
+                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
+                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</div>
+                  <div className="col-span-1 p-1" style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.paise}</div>
+                </div>
+                {/* Expense Rows - Matching height with left table (10 rows total) */}
+                {[DISPLAY_NAMES.commission, DISPLAY_NAMES.porterage, DISPLAY_NAMES.carRental, DISPLAY_NAMES.bundleExpenses, DISPLAY_NAMES.hundekariExpenses, DISPLAY_NAMES.spaceRent, DISPLAY_NAMES.warai, DISPLAY_NAMES.otherExpenses].map((expense, idx) => (
+                  <div key={idx} className="grid grid-cols-3 border-b text-xs" style={{ borderColor: '#008000' }}>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>{expense}</div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 p-1" style={{ minHeight: '22px' }}></div>
+                  </div>
+                ))}
+                {/* Additional empty rows to match left table (10 rows total) */}
+                {Array(2).fill(0).map((_, i) => (
+                  <div key={`empty-${i}`} className="grid grid-cols-3 border-b text-xs" style={{ borderColor: '#008000' }}>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="col-span-1 p-1" style={{ minHeight: '22px' }}></div>
+                  </div>
+                ))}
+                
+                {/* Right Table - Professional Totals Section */}
+                <div className="grid grid-cols-3 border-t-2 text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                  <div className="col-span-1 border-r p-2 text-left" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalSales}</div>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000' }}></div>
+                  <div className="col-span-1 p-2 text-right" style={{ borderColor: '#008000' }}></div>
+                </div>
+                <div className="grid grid-cols-3 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                  <div className="col-span-1 border-r p-2 text-left" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.expenses}</div>
+                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000' }}></div>
+                  <div className="col-span-1 p-2 text-right" style={{ borderColor: '#008000' }}></div>
+                </div>
+                <div className="grid grid-cols-3 border-b text-xs font-bold" style={{ borderColor: '#008000', backgroundColor: '#f0f9ff' }}>
+                  <div className="col-span-1 border-r p-2 text-left" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.netBalance}</div>
+                  <div className="col-span-1 border-r p-2 text-center" style={{ borderColor: '#008000' }}>
+                    <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs font-bold">Rs.</span>
+                  </div>
+                  <div className="col-span-1 p-2 text-right font-bold" style={{ borderColor: '#008000' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          {/* Combined Bottom Table - Terms, Grand Total, Errors/Signature */}
+          <div className="border-2 mb-4" style={{ borderColor: '#008000' }}>
+            <div className="grid grid-cols-12" style={{ minHeight: '150px' }}>
+              {/* Left Side - Terms and Conditions */}
+              <div className="col-span-5 p-3" style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.salesSlipSent}</div>
+                <div style={{ marginBottom: '4px' }}>
+                  {DISPLAY_NAMES.amountOfSlip}
+                  <span style={{ borderBottom: '1px solid #008000', padding: '0 60px', display: 'inline-block', minWidth: '150px' }}></span>
+                </div>
+                <div style={{ marginBottom: '4px' }}>
+                  {DISPLAY_NAMES.toBeCollected}
+                  <span style={{ borderBottom: '1px solid #008000', padding: '0 40px', display: 'inline-block', minWidth: '100px', marginLeft: '8px' }}></span>
+                  .
+                </div>
+                <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.ifNotReceived}</div>
+                <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.noComplaints}</div>
+                <div style={{ marginTop: '8px', fontWeight: 'bold' }}>{DISPLAY_NAMES.thanks}</div>
+              </div>
+
+              {/* Center - Grand Total (increased width, left-oriented text) */}
+              <div className="col-span-2 p-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: '12px', paddingLeft: '0', paddingRight: '0' }}>
+                <div className="border-2 p-2" style={{ borderColor: '#008000', width: '200%', minWidth: '350px', height: '45px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', backgroundColor: '#f0f9ff', marginRight: '-220px', padding: '8px 12px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.grandTotal}</span>
+                  <span className="bg-red-600 text-white px-2 py-0.5 text-xs font-bold" style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</span>
+                  <div style={{ minWidth: '120px', minHeight: '18px', flex: 1 }}></div>
+                </div>
+                <div className="text-xs italic mt-2 mb-4 whitespace-nowrap" style={{ textAlign: 'center', width: '200%', minWidth: '350px', marginRight: '-220px', marginTop: '8px' }}>{DISPLAY_NAMES.errorsOmissions}</div>
+              </div>
+
+              {/* Right Side - Signature */}
+              <div className="col-span-5 p-3 flex flex-col justify-end items-end" style={{ fontSize: '11px' }}>
+                <div className="flex flex-col justify-end items-center" style={{ textAlign: 'center' }}>
+                  <div className="text-xs mb-2">{DISPLAY_NAMES.yoursSincerely}</div>
+                  <div className="text-xs">{DISPLAY_NAMES.signatureName}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
