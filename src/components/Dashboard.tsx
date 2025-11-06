@@ -301,7 +301,6 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
       {/* Top Bar */}
       <div className="flex items-center justify-between px-8 py-0 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 shadow-md border-b" style={{ height: 72 }}>
         <div className="flex items-center h-full">
-          <img src="/inovice_formatting/logo_wbg.png" alt="Firm Logo" className="h-full w-auto mr-4 drop-shadow" style={{ maxHeight: 72 }} />
         </div>
         <div className="flex items-center gap-4">
           {onLogout && (
@@ -517,7 +516,8 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
       </div>
 
       {/* Footer - Fixed position over table */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 text-white py-4 text-center shadow-md z-40">
+      {/* Commented out - Powered by Highflyers Infotech footer */}
+      {/* <footer className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 text-white py-4 text-center shadow-md z-40">
         <div className="text-center text-white text-sm py-2">
           Powered by{' '}
           <a 
@@ -529,7 +529,7 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
             Highflyers Infotech
           </a>
         </div>
-      </footer>
+      </footer> */}
 
       {/* Invoice Preview Modal */}
       {showPreview && selectedInvoice && (
