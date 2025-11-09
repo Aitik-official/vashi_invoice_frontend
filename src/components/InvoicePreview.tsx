@@ -496,42 +496,37 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
             <div className="grid grid-cols-12">
               {/* Left Table - Item Details (increased width) */}
               <div className="col-span-8 border-r-2" style={{ borderColor: '#008000' }}>
-                {/* Header Row - 7 columns with Per unit price */}
-                <div className="grid grid-cols-7 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
-                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</div>
-                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.paise}</div>
+                {/* Header Row - 5 columns with integrated Rupees */}
+                <div className="grid grid-cols-5 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
                   <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
-                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.item}</div>
-                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.piece}</div>
-                  <div className="col-span-1 p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.perUnitPrice}</div>
+                  <div className="border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.piece}</div>
+                  <div className="border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.crates}</div>
+                  <div className="border-r p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.perUnitPrice}</div>
+                  <div className="p-1" style={{ borderColor: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</div>
                 </div>
                 {/* Content Rows - Increased rows to utilize blank white space */}
                 {Array(13).fill(0).map((_, i) => (
-                  <div key={i} className="grid grid-cols-7 border-b text-center" style={{ borderColor: '#008000' }}>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                  <div key={i} className="grid grid-cols-5 border-b text-center" style={{ borderColor: '#008000' }}>
                     <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
-                    <div className="col-span-1 p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
+                    <div className="p-1" style={{ borderColor: '#008000', minHeight: '22px' }}></div>
                   </div>
                 ))}
                 
-                {/* Left Table - Totals Section: Rs. value, Paise value, Parameter names (vertical borders extending to bottom edge) */}
-                <div className="grid grid-cols-7 border-t-2 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
-                  <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalSales}</div>
+                {/* Left Table - Totals Section */}
+                <div className="grid grid-cols-5 border-t-2 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                  <div className="col-span-4 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalSales}</div>
+                  <div className="p-2 text-right" style={{ borderColor: '#008000' }}></div>
                 </div>
-                <div className="grid grid-cols-7 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}></div>
-                  <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.expenses}</div>
+                <div className="grid grid-cols-5 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
+                  <div className="col-span-4 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.expenses}</div>
+                  <div className="p-2 text-right" style={{ borderColor: '#008000' }}></div>
                 </div>
-                <div className="grid grid-cols-7 text-xs font-bold" style={{ borderColor: '#008000', backgroundColor: '#f0f9ff' }}>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}></div>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}></div>
-                  <div className="col-span-5 p-2 text-left font-bold" style={{ borderColor: '#008000', borderBottom: 'none' }}>{DISPLAY_NAMES.netBalance}</div>
+                <div className="grid grid-cols-5 text-xs font-bold" style={{ borderColor: '#008000', backgroundColor: '#f0f9ff' }}>
+                  <div className="col-span-4 p-2 text-left font-bold" style={{ borderColor: '#008000', borderBottom: 'none' }}>{DISPLAY_NAMES.netBalance}</div>
+                  <div className="p-2 text-right" style={{ borderColor: '#008000', borderBottom: 'none' }}></div>
                 </div>
               </div>
 
