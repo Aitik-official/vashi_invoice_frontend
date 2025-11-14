@@ -143,6 +143,52 @@ export const generateStandardizedPDF = async (
       htmlCell.style.top = '-2.5px';
     });
 
+    // Apply upward shift BEFORE html2canvas - use multiple methods for reliability
+    // Method 1: Reduce padding-top of main content box
+    const mainContentBox = hiddenDiv.querySelector('div[style*="paddingTop"][style*="0.5rem"], div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"]');
+    if (mainContentBox instanceof HTMLElement) {
+      // Reduce padding-top to shift content up
+      const currentPaddingTop = mainContentBox.style.paddingTop || '';
+      if (currentPaddingTop.includes('0.5rem')) {
+        mainContentBox.style.paddingTop = '0';
+      } else if (currentPaddingTop.includes('1rem')) {
+        mainContentBox.style.paddingTop = '0.25rem';
+      }
+      
+      // Also apply negative margin-top
+      mainContentBox.style.marginTop = '-60px';
+      mainContentBox.style.position = 'relative';
+      
+      // Method 2: Apply to all child elements using top positioning
+      const allChildren = mainContentBox.querySelectorAll('*');
+      allChildren.forEach((child) => {
+        if (child instanceof HTMLElement) {
+          child.style.position = 'relative';
+          child.style.top = '-60px';
+        }
+      });
+      
+      // Method 3: Specifically target headers
+      const headers = hiddenDiv.querySelectorAll('div[style*="#035f87"]');
+      headers.forEach((header) => {
+        if (header instanceof HTMLElement) {
+          header.style.position = 'relative';
+          header.style.top = '-60px';
+          header.style.marginTop = '-60px';
+        }
+      });
+      
+      // Method 4: Apply to grand total box elements
+      const grandTotalElements = hiddenDiv.querySelectorAll('[data-pdf-shift="true"]');
+      grandTotalElements.forEach((element) => {
+        if (element instanceof HTMLElement) {
+          element.style.position = 'relative';
+          element.style.top = '-60px';
+          element.style.marginTop = '-60px';
+        }
+      });
+    }
+
     // Wait for all images to load
     await waitForImagesToLoad(hiddenDiv);
     
@@ -164,6 +210,84 @@ export const generateStandardizedPDF = async (
           clonedStamp.style.flexShrink = '0';
           clonedStamp.style.flexGrow = '0';
         }
+        
+        // Shift all text content upward for PDF - use CSS injection and data attributes
+        // Inject a style tag with transform rules
+        const styleTag = clonedDoc.createElement('style');
+        styleTag.textContent = `
+          [data-pdf-shift="true"] {
+            transform: translateY(-60px) !important;
+            position: relative !important;
+          }
+          div[style*="paddingTop"][style*="0.5rem"],
+          div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"] {
+            transform: translateY(-60px) !important;
+            position: relative !important;
+          }
+          div[style*="paddingTop"][style*="0.5rem"] *,
+          div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"] * {
+            transform: translateY(-60px) !important;
+            position: relative !important;
+          }
+          div[style*="#035f87"],
+          div[style*="backgroundColor"][style*="#035f87"] {
+            transform: translateY(-60px) !important;
+            position: relative !important;
+          }
+          div[style*="#035f87"] *,
+          div[style*="backgroundColor"][style*="#035f87"] * {
+            transform: translateY(-60px) !important;
+          }
+        `;
+        clonedDoc.head.appendChild(styleTag);
+        
+        // Apply directly to elements with data-pdf-shift attribute (grand total box)
+        const pdfShiftElements = clonedDoc.body.querySelectorAll('[data-pdf-shift="true"]');
+        pdfShiftElements.forEach((element: Element) => {
+          if (element instanceof HTMLElement) {
+            element.style.setProperty('transform', 'translateY(-60px)', 'important');
+            element.style.setProperty('position', 'relative', 'important');
+          }
+        });
+        
+        // Also apply directly to main content box and headers
+        const allDivs = clonedDoc.body.querySelectorAll('div');
+        
+        allDivs.forEach((box) => {
+          if (box instanceof HTMLElement) {
+            const style = box.getAttribute('style') || '';
+            const hasPaddingTop = style.includes('paddingTop') && style.includes('0.5rem');
+            const hasPadding = style.includes('padding') && style.includes('1rem');
+            const hasFontSize = style.includes('fontSize') && style.includes('12px');
+            const hasWidth = style.includes('width') && style.includes('100%');
+            
+            if ((hasPaddingTop || hasPadding) && hasFontSize && hasWidth) {
+              // Shift the entire container
+              box.style.setProperty('transform', 'translateY(-60px)', 'important');
+              box.style.setProperty('position', 'relative', 'important');
+              
+              // Apply to all child elements
+              const allChildren = box.querySelectorAll('*');
+              allChildren.forEach((element: Element) => {
+                if (element instanceof HTMLElement) {
+                  element.style.setProperty('transform', 'translateY(-60px)', 'important');
+                }
+              });
+            }
+            
+            // Target headers specifically
+            if (style.includes('#035f87')) {
+              box.style.setProperty('transform', 'translateY(-60px)', 'important');
+              box.style.setProperty('position', 'relative', 'important');
+              const headerChildren = box.querySelectorAll('*');
+              headerChildren.forEach((child: Element) => {
+                if (child instanceof HTMLElement) {
+                  child.style.setProperty('transform', 'translateY(-60px)', 'important');
+                }
+              });
+            }
+          }
+        });
       },
       ignoreElements: (element) => {
         // Ignore elements with problematic CSS

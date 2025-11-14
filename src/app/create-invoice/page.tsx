@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { DISPLAY_NAMES } from '../../components/InvoicePreview';
 import { generateStandardizedPDF } from '../../utils/pdfGenerator';
 import InvoicePreview from '../../components/InvoicePreview';
+import { parseMarathiNumber, numberToMarathi, formatMarathiCurrency, englishToMarathi } from '../../utils/marathiDigits';
 
 // EditableSpan component - completely uncontrolled, only updates state on blur
 const EditableSpan = React.memo(({ 
@@ -44,7 +45,18 @@ const EditableSpan = React.memo(({
   // Don't update state during typing - only on blur
   const handleBlur = () => {
     if (inputRef.current) {
-      const finalValue = inputRef.current.value;
+      let finalValue = inputRef.current.value;
+      // For numeric fields, convert Marathi to English for storage but keep original for display
+      // Check if field is a numeric field (rs, paise, price, piece, item, etc.)
+      if (field.includes('_rs') || field.includes('_paise') || field.includes('_price') || 
+          field.includes('_piece') || field.includes('_item')) {
+        // Store in English digits for calculations, but display in Marathi
+        const englishValue = parseMarathiNumber(finalValue).toString();
+        // If user entered Marathi, convert to English for storage
+        if (finalValue && /[०-९]/.test(finalValue)) {
+          finalValue = englishValue;
+        }
+      }
       onChange(field, finalValue);
     }
   };
@@ -59,7 +71,7 @@ const EditableSpan = React.memo(({
       style={{
         ...style,
         border: 'none',
-        borderBottom: '1px solid #008000',
+        borderBottom: '1px solid #1f4fb9',
         background: 'transparent',
         outline: 'none',
         textAlign: 'center',
@@ -116,15 +128,15 @@ function CreateInvoiceDirectPage() {
     
     // Sum all expense rows (0-7)
     for (let i = 0; i < 8; i++) {
-      const rs = parseFloat(invoiceData[`expense${i}_rs`] || '0') || 0;
-      const paise = parseFloat(invoiceData[`expense${i}_paise`] || '0') || 0;
+      const rs = parseMarathiNumber(invoiceData[`expense${i}_rs`] || '0');
+      const paise = parseMarathiNumber(invoiceData[`expense${i}_paise`] || '0');
       totalPaise += (rs * 100) + paise;
     }
     
     // Sum all empty rows (0-4)
     for (let i = 0; i < 5; i++) {
-      const rs = parseFloat(invoiceData[`empty${i}_rs`] || '0') || 0;
-      const paise = parseFloat(invoiceData[`empty${i}_paise`] || '0') || 0;
+      const rs = parseMarathiNumber(invoiceData[`empty${i}_rs`] || '0');
+      const paise = parseMarathiNumber(invoiceData[`empty${i}_paise`] || '0');
       totalPaise += (rs * 100) + paise;
     }
     
@@ -136,9 +148,9 @@ function CreateInvoiceDirectPage() {
 
   // Calculate row total (Piece or Crates × Per unit price)
   const calculateRowTotal = (rowIndex: number) => {
-    const piece = parseFloat(invoiceData[`row${rowIndex}_item`] || '0') || 0; // Using _item field for Piece
-    const crates = parseFloat(invoiceData[`row${rowIndex}_piece`] || '0') || 0; // Using _piece field for Crates
-    const perUnitPrice = parseFloat(invoiceData[`row${rowIndex}_price`] || '0') || 0;
+    const piece = parseMarathiNumber(invoiceData[`row${rowIndex}_item`] || '0'); // Using _item field for Piece
+    const crates = parseMarathiNumber(invoiceData[`row${rowIndex}_piece`] || '0'); // Using _piece field for Crates
+    const perUnitPrice = parseMarathiNumber(invoiceData[`row${rowIndex}_price`] || '0');
     
     // Use Piece if available, otherwise use Crates
     const quantity = piece > 0 ? piece : crates;
@@ -196,6 +208,19 @@ function CreateInvoiceDirectPage() {
     return { rs: netRs, paise: netRemainingPaise, isNegative: netPaise < 0 };
   };
 
+  const formatAmount = (rs: number | null, paise: number | null, isNegative = false) => {
+    if (rs === null || paise === null) return '';
+    const totalPaise = (rs * 100) + paise;
+    let amount = totalPaise / 100;
+    if (isNegative) {
+      amount = -Math.abs(amount);
+    }
+    if (amount === 0) return '';
+    // Format with Marathi digits
+    const formatted = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return englishToMarathi(formatted);
+  };
+
   // Prepare data for InvoicePreview component (format data properly)
   const prepareInvoiceDataForPreview = () => {
     // Build table data from left table rows
@@ -204,12 +229,11 @@ function CreateInvoiceDirectPage() {
       const rowTotal = calculateRowTotal(i);
       if (rowTotal.rs !== null && rowTotal.paise !== null) {
         tableData.push({
-          rs: rowTotal.rs,
-          paise: rowTotal.paise,
           details: invoiceData[`row${i}_details`] || '',
           piece: invoiceData[`row${i}_item`] || '',
           crates: invoiceData[`row${i}_piece`] || '',
           price: invoiceData[`row${i}_price`] || '',
+          amount: formatAmount(rowTotal.rs, rowTotal.paise),
         });
       }
     }
@@ -238,14 +262,10 @@ function CreateInvoiceDirectPage() {
       "In_no": invoiceData["In_no"] || '',
       invoiceDate: invoiceData.invoiceDate || '',
       table: tableData,
-      totalSalesRs: totalSales.rs !== null ? totalSales.rs : '',
-      totalSalesPaise: totalSales.paise !== null ? totalSales.paise : '',
-      expensesRs: totalExpenses.rs > 0 ? totalExpenses.rs : '',
-      expensesPaise: totalExpenses.paise > 0 ? totalExpenses.paise : '',
-      netBalanceRs: netBalance.rs !== null ? netBalance.rs : '',
-      netBalancePaise: netBalance.paise !== null ? netBalance.paise : '',
-      grandTotalRs: netBalance.rs !== null ? netBalance.rs : '',
-      grandTotalPaise: netBalance.paise !== null ? netBalance.paise : '',
+      goodsTable: tableData,
+      totalSalesFormatted: formatAmount(totalSales.rs, totalSales.paise),
+      totalExpensesFormatted: formatAmount(totalExpenses.rs, totalExpenses.paise),
+      netBalanceFormatted: formatAmount(netBalance.rs, netBalance.paise, netBalance.isNegative),
     };
   };
 
@@ -290,7 +310,7 @@ function CreateInvoiceDirectPage() {
       const textLabels = previewRef.current.querySelectorAll('span:not(td span, th span), p:not(td p, th p)');
       const inputElements = previewRef.current.querySelectorAll('input.editable-field');
       const tableCells = previewRef.current.querySelectorAll('td, th, .grid > div');
-      const originalStyles: Array<{ element: HTMLElement; transform: string; position: string; borderBottom: string; overflow: string; whiteSpace: string; minHeight: string; display: string; visibility: string; zIndex: string }> = [];
+      const originalStyles: Array<{ element: HTMLElement; transform: string; position: string; borderBottom: string; overflow: string; whiteSpace: string; minHeight: string; display: string; visibility: string; zIndex: string; marginTop?: string; top?: string; paddingTop?: string }> = [];
       const inputReplacements: Array<{ input: HTMLInputElement; span: HTMLSpanElement }> = [];
       
       // Convert input fields to visible text spans so their values are captured in PDF
@@ -419,6 +439,120 @@ function CreateInvoiceDirectPage() {
         htmlEl.style.transform = 'none';
       }
 
+      // Apply upward shift BEFORE html2canvas - use multiple methods for reliability
+      const mainContentBox = previewRef.current.querySelector('div[style*="paddingTop"][style*="0.5rem"], div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"]');
+      if (mainContentBox instanceof HTMLElement) {
+        // Store original styles for restoration
+        const originalPaddingTop = mainContentBox.style.paddingTop || '';
+        const originalMarginTop = mainContentBox.style.marginTop || '';
+        const originalPosition = mainContentBox.style.position || '';
+        originalStyles.push({
+          element: mainContentBox,
+          transform: '',
+          position: originalPosition,
+          borderBottom: '',
+          overflow: '',
+          whiteSpace: '',
+          minHeight: '',
+          display: '',
+          visibility: '',
+          zIndex: '',
+          marginTop: originalMarginTop,
+          paddingTop: originalPaddingTop
+        } as any);
+        
+        // Method 1: Reduce padding-top
+        if (originalPaddingTop.includes('0.5rem')) {
+          mainContentBox.style.paddingTop = '0';
+        } else if (originalPaddingTop.includes('1rem')) {
+          mainContentBox.style.paddingTop = '0.25rem';
+        }
+        
+        // Method 2: Apply negative margin and top
+        mainContentBox.style.marginTop = '-60px';
+        mainContentBox.style.position = 'relative';
+        mainContentBox.style.top = '-60px';
+        
+        // Method 3: Apply to all child elements
+        const allChildren = mainContentBox.querySelectorAll('*');
+        allChildren.forEach((child) => {
+          if (child instanceof HTMLElement) {
+            const childOriginalTop = child.style.top || '';
+            const childOriginalPosition = child.style.position || '';
+            originalStyles.push({
+              element: child,
+              transform: '',
+              position: childOriginalPosition,
+              borderBottom: '',
+              overflow: '',
+              whiteSpace: '',
+              minHeight: '',
+              display: '',
+              visibility: '',
+              zIndex: '',
+              marginTop: '',
+              top: childOriginalTop
+            } as any);
+            child.style.position = 'relative';
+            child.style.top = '-60px';
+          }
+        });
+        
+        // Method 4: Specifically target headers
+        const headers = previewRef.current.querySelectorAll('div[style*="#035f87"]');
+        headers.forEach((header) => {
+          if (header instanceof HTMLElement) {
+            const headerOriginalTop = header.style.top || '';
+            const headerOriginalPosition = header.style.position || '';
+            const headerOriginalMarginTop = header.style.marginTop || '';
+            originalStyles.push({
+              element: header,
+              transform: '',
+              position: headerOriginalPosition,
+              borderBottom: '',
+              overflow: '',
+              whiteSpace: '',
+              minHeight: '',
+              display: '',
+              visibility: '',
+              zIndex: '',
+              marginTop: headerOriginalMarginTop,
+              top: headerOriginalTop
+            } as any);
+            header.style.position = 'relative';
+            header.style.top = '-60px';
+            header.style.marginTop = '-60px';
+          }
+        });
+        
+        // Method 5: Apply to grand total box elements
+        const grandTotalElements = previewRef.current.querySelectorAll('[data-pdf-shift="true"]');
+        grandTotalElements.forEach((element) => {
+          if (element instanceof HTMLElement) {
+            const elementOriginalTop = element.style.top || '';
+            const elementOriginalPosition = element.style.position || '';
+            const elementOriginalMarginTop = element.style.marginTop || '';
+            originalStyles.push({
+              element: element,
+              transform: '',
+              position: elementOriginalPosition,
+              borderBottom: '',
+              overflow: '',
+              whiteSpace: '',
+              minHeight: '',
+              display: '',
+              visibility: '',
+              zIndex: '',
+              marginTop: elementOriginalMarginTop,
+              top: elementOriginalTop
+            } as any);
+            element.style.position = 'relative';
+            element.style.top = '-60px';
+            element.style.marginTop = '-60px';
+          }
+        });
+      }
+
       // Generate canvas from the editable invoice preview
       const canvas = await html2canvas(previewRef.current, {
         scale: 2.5,
@@ -439,10 +573,19 @@ function CreateInvoiceDirectPage() {
         span.remove();
       });
       
-      originalStyles.forEach(({ element, transform, position, borderBottom, overflow, whiteSpace, minHeight, display, visibility, zIndex }) => {
+      originalStyles.forEach(({ element, transform, position, borderBottom, overflow, whiteSpace, minHeight, display, visibility, zIndex, marginTop, top, paddingTop }) => {
         if (transform || position) {
           element.style.transform = transform;
           element.style.position = position;
+        }
+        if (marginTop !== undefined) {
+          element.style.marginTop = marginTop;
+        }
+        if (top !== undefined) {
+          element.style.top = top;
+        }
+        if (paddingTop !== undefined) {
+          element.style.paddingTop = paddingTop;
         }
         if (borderBottom !== undefined && element instanceof HTMLInputElement) {
           element.style.borderBottom = borderBottom;
@@ -636,16 +779,16 @@ function CreateInvoiceDirectPage() {
           </div>
 
           {/* Main Content Box - Editable */}
-          <div style={{ width: '100%', padding: '1rem', fontSize: '12px' }}>
+          <div style={{ width: '100%', padding: '1rem', paddingTop: '0.5rem', fontSize: '12px' }}>
             {/* Top Header Section */}
-            <div style={{ border: '2px solid #008000', padding: '8px', marginBottom: '1rem' }}>
+            <div style={{ border: '2px solid #1f4fb9', padding: '8px', marginBottom: '0.25rem', backgroundColor: '#f2eed3' }}>
               {/* Top Line - Invoice No (left) and Date (right) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ display: 'inline-block' }}>
-                  {DISPLAY_NAMES['In_no']}: <EditableSpanWrapper field="In_no" style={{ width: '120px', display: 'inline-block' }} />
+                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES['In_no']}:</span> <EditableSpanWrapper field="In_no" style={{ width: '120px', display: 'inline-block' }} />
                 </span>
                 <span style={{ display: 'inline-block' }}>
-                  {DISPLAY_NAMES.date}: <EditableSpanWrapper field="invoiceDate" style={{ width: '100px', display: 'inline-block' }} />
+                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES.date}:</span> <EditableSpanWrapper field="invoiceDate" style={{ width: '100px', display: 'inline-block' }} />
                 </span>
               </div>
               
@@ -653,30 +796,30 @@ function CreateInvoiceDirectPage() {
               <div style={{ marginBottom: '8px', lineHeight: '1.6' }}>
                 {/* First Line */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.mrRaRa}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.mrRaRa}</span>
                   <EditableSpanWrapper field="mrRaRa" style={{ flex: '1', minWidth: '200px' }} />
-                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.place}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.place}</span>
                   <EditableSpanWrapper field="place" style={{ flex: '1', minWidth: '200px' }} />
-                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.to}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.to}</span>
                 </div>
                 
                 {/* Second Line */}
                 <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap', marginBottom: '8px', lineHeight: '1.6', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.loveGreetings}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.loveGreetings}</span>
                   <EditableSpanWrapper field="raRaNo" style={{ flex: 1, marginLeft: '8px', marginRight: '8px' }} />
-                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
                   <span data-field="chequeDraftNo">
                     <EditableSpanWrapper field="chequeDraftNo" style={{ width: '100px', marginLeft: '8px', marginRight: '8px' }} />
                   </span>
-                  <span style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.received}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.received}</span>
                 </div>
                 
                 {/* Remaining lines */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', lineHeight: '1.6' }}>
                   <div style={{ width: '60%' }}>
-                    <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.salesDetails}</div>
+                    <div style={{ marginBottom: '4px', color: '#1670b5' }}>{DISPLAY_NAMES.salesDetails}</div>
                     <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
-                      <span style={{ marginRight: '8px' }}>{DISPLAY_NAMES.deposit}:</span>
+                      <span style={{ marginRight: '8px', color: '#1670b5' }}>{DISPLAY_NAMES.deposit}:</span>
                       <EditableSpanWrapper field="deposit" style={{ flex: 1 }} />
                     </div>
                   </div>
@@ -685,169 +828,271 @@ function CreateInvoiceDirectPage() {
             </div>
 
             {/* Middle Section - Two Side-by-Side Tables */}
-            <div className="w-full border-2 border-green-700 mb-4" style={{ borderColor: '#008000' }}>
+            <div className="w-full border-2 border-green-700 mb-1" style={{ borderColor: '#1f4fb9' }}>
               <div className="grid grid-cols-12">
                 {/* Left Table - Item Details */}
-                <div className="col-span-9 border-r-2" style={{ borderColor: '#008000' }}>
+                <div className="col-span-9 border-r-2" style={{ borderColor: '#1f4fb9' }}>
                   {/* Header Row */}
-                  <div className="grid grid-cols-7 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.rs}</div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.paise}</div>
-                    <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.piece}</div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.crates}</div>
-                    <div className="col-span-1 p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.perUnitPrice}</div>
+                  <div
+                    className="grid border-b font-semibold text-center text-xs whitespace-nowrap"
+                    style={{ borderColor: '#1f4fb9', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', backgroundColor: '#035f87', color: '#ffffff' }}
+                  >
+                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
+                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.piece}</div>
+                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.crates}</div>
+                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.perUnitPrice}</div>
+                    <div className="p-1" style={{ backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.rs}</div>
                   </div>
                   {/* Content Rows - Editable */}
                   {Array(13).fill(0).map((_, i) => {
                     const rowTotal = calculateRowTotal(i);
+                    const formattedRowTotal = formatAmount(rowTotal.rs, rowTotal.paise);
+                    const rowBgColor = i % 2 === 0 ? '#ffffff' : '#fafafa';
                     return (
-                      <div key={i} className="grid grid-cols-7 border-b text-center" style={{ borderColor: '#008000' }}>
-                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{rowTotal.rs !== null ? rowTotal.rs : ''}</span>
-                        </div>
-                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{rowTotal.paise !== null ? rowTotal.paise : ''}</span>
-                        </div>
-                        <div className="col-span-2 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                      <div
+                        key={i}
+                        className="grid border-b text-center"
+                        style={{ borderColor: '#1f4fb9', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', backgroundColor: rowBgColor }}
+                      >
+                        <div className="border-r p-1 text-left" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
                           <EditableSpanWrapper field={`row${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
                         </div>
-                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
-                          <EditableSpanWrapper field={`row${i}_item`} style={{ width: '100%', minHeight: '22px' }} />
-                        </div>
-                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                        <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#efdff0' }}>
                           <EditableSpanWrapper field={`row${i}_piece`} style={{ width: '100%', minHeight: '22px' }} />
                         </div>
-                        <div className="col-span-1 p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
+                        <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`row${i}_item`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#efdff0' }}>
                           <EditableSpanWrapper field={`row${i}_price`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{formattedRowTotal}</span>
                         </div>
                       </div>
                     );
                   })}
                   
                   {/* Left Table - Totals Section (Auto-calculated) */}
-                  <div className="grid grid-cols-7 border-t-2 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalSales().rs !== null ? calculateTotalSales().rs : ''}</span>
+                  <div style={{ position: 'relative' }}>
+                    {/* White Overlay for Column 1 */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: '44.804%', // 4fr / (4 + 1.2 + 1.2 + 1.5 + 1)fr = 4/9.9 = 40.404% perfect is 44.804 
+                        height: '100%',
+                        backgroundColor: '#f2eed3',
+                        zIndex: 10,
+                        pointerEvents: 'none',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '8px'
+                      }}
+                    >
+                      {/* Grand Total Box - Reduced Width */}
+                      <div data-pdf-shift="true" style={{ width: '90%', maxWidth: '250px', position: 'relative', zIndex: 11 }}>
+                        {/* Net Balance Title - Red, Bold - Increased Size */}
+                        <div data-pdf-shift="true" style={{ fontSize: '16px', fontWeight: 'bold', color: '#dc2626', marginBottom: '6px', textAlign: 'center' }}>
+                          {DISPLAY_NAMES.netBalance}
+                        </div>
+                        
+                        {/* Grand Total Box with Red Circle and Amount */}
+                        <div 
+                          data-pdf-shift="true"
+                          style={{ 
+                            border: '1px solid #dc2626', 
+                            borderRadius: '4px',
+                            width: '100%',
+                            height: '45px',
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            padding: '6px 10px',
+                            backgroundColor: '#fefefe',
+                            position: 'relative',
+                            gap: '10px'
+                          }}
+                        >
+                          {/* Red Circle with Rupee Symbol */}
+                          <div
+                            data-pdf-shift="true"
+                            style={{
+                              width: '35px',
+                              height: '35px',
+                              borderRadius: '50%',
+                              backgroundColor: '#dc2626',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              position: 'relative',
+                              zIndex: 2
+                            }}
+                          >
+                            <img 
+                              src="/inovice_formatting/rupee_sym.png" 
+                              alt="₹" 
+                              style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                            />
+                          </div>
+                          
+                          {/* Amount Display - Black text, centered, slightly overlapping circle */}
+                          <div
+                            data-pdf-shift="true"
+                            style={{
+                              fontSize: '16px',
+                              fontWeight: 'bold',
+                              color: '#000000',
+                              marginLeft: '-6px',
+                              flex: 1,
+                              minHeight: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            {formatAmount(calculateNetBalance().rs, calculateNetBalance().paise, calculateNetBalance().isNegative)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalSales().paise !== null ? calculateTotalSales().paise : ''}</span>
+                    
+                    {/* Total Sales Row */}
+                    <div
+                      className="grid border-t-2 border-b text-xs font-semibold"
+                      style={{ borderColor: '#1f4fb9', backgroundColor: '#c1e4ff', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', position: 'relative' }}
+                    >
+                      <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#c1e4ff', gridColumn: '1' }}></div>
+                      <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.totalSales}</div>
+                      <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{formatAmount(calculateTotalSales().rs, calculateTotalSales().paise)}</span>
+                      </div>
                     </div>
-                    <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalSales}</div>
-                  </div>
-                  <div className="grid grid-cols-7 border-b text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().rs > 0 ? calculateTotalExpenses().rs : ''}</span>
+                    {/* Expenses Row */}
+                    <div
+                      className="grid border-b text-xs font-semibold"
+                      style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', position: 'relative' }}
+                    >
+                      <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#f2eed3', gridColumn: '1' }}></div>
+                      <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.expenses}</div>
+                      <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{formatAmount(calculateTotalExpenses().rs, calculateTotalExpenses().paise)}</span>
+                      </div>
                     </div>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().paise > 0 ? calculateTotalExpenses().paise : ''}</span>
+                    {/* Net Balance Row */}
+                    <div
+                      className="grid text-xs font-bold"
+                      style={{ borderColor: '#1f4fb9', backgroundColor: '#efdff0', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', position: 'relative' }}
+                    >
+                      <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '1' }}></div>
+                      <div className="border-r p-2 text-left font-bold" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.netBalance}</div>
+                      <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '4 / 6' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                          {formatAmount(calculateNetBalance().rs, calculateNetBalance().paise, calculateNetBalance().isNegative)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="col-span-5 p-2 text-left font-semibold" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.expenses}</div>
-                  </div>
-                  <div className="grid grid-cols-7 text-xs font-bold" style={{ borderColor: '#008000', backgroundColor: '#f0f9ff' }}>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                        {calculateNetBalance().rs !== null ? `${calculateNetBalance().isNegative ? '-' : ''}${calculateNetBalance().rs}` : ''}
-                      </span>
-                    </div>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000', borderRight: '1px solid #008000', borderBottom: 'none' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{calculateNetBalance().paise !== null ? calculateNetBalance().paise : ''}</span>
-                    </div>
-                    <div className="col-span-5 p-2 text-left font-bold" style={{ borderColor: '#008000', borderBottom: 'none' }}>{DISPLAY_NAMES.netBalance}</div>
                   </div>
                 </div>
 
                 {/* Right Table - Expenses */}
-                <div className="col-span-3">
+                <div className="col-span-3" style={{ backgroundColor: '#f2eed3' }}>
                   {/* Header Row - Using 5 columns: Details (3), Rs (1), Paise (1) */}
-                  <div className="grid grid-cols-5 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#008000' }}>
-                    <div className="col-span-3 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.rs}</div>
-                    <div className="col-span-1 p-1">{DISPLAY_NAMES.paise}</div>
+                  <div className="grid grid-cols-5 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#1f4fb9', backgroundColor: '#035f87', color: '#ffffff' }}>
+                    <div className="col-span-3 border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
+                    <div className="col-span-1 border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.rs}</div>
+                    <div className="col-span-1 p-1" style={{ backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.paise}</div>
                   </div>
                   {/* Expense Rows */}
-                  {[DISPLAY_NAMES.commission, DISPLAY_NAMES.porterage, DISPLAY_NAMES.carRental, DISPLAY_NAMES.bundleExpenses, DISPLAY_NAMES.hundekariExpenses, DISPLAY_NAMES.spaceRent, DISPLAY_NAMES.warai, DISPLAY_NAMES.otherExpenses].map((expense, idx) => (
-                    <div key={idx} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#008000' }}>
-                      <div className="col-span-3 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>{expense}</div>
-                      <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
-                        <EditableSpanWrapper field={`expense${idx}_rs`} style={{ width: '100%', minHeight: '22px' }} />
+                  {[DISPLAY_NAMES.commission, DISPLAY_NAMES.porterage, DISPLAY_NAMES.carRental, DISPLAY_NAMES.bundleExpenses, DISPLAY_NAMES.hundekariExpenses, DISPLAY_NAMES.spaceRent, DISPLAY_NAMES.warai, DISPLAY_NAMES.otherExpenses].map((expense, idx) => {
+                    return (
+                      <div key={idx} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
+                        <div className="col-span-3 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>{expense}</div>
+                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`expense${idx}_rs`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="col-span-1 p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`expense${idx}_paise`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
                       </div>
-                      <div className="col-span-1 p-1" style={{ minHeight: '22px' }}>
-                        <EditableSpanWrapper field={`expense${idx}_paise`} style={{ width: '100%', minHeight: '22px' }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {/* Additional empty rows */}
-                  {Array(5).fill(0).map((_, i) => (
-                    <div key={`empty-${i}`} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#008000' }}>
-                      <div className="col-span-3 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
-                        <EditableSpanWrapper field={`empty${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
+                  {Array(5).fill(0).map((_, i) => {
+                    return (
+                      <div key={`empty-${i}`} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
+                        <div className="col-span-3 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>
+                          <EditableSpanWrapper field={`empty${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`empty${i}_rs`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
+                        <div className="col-span-1 p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`empty${i}_paise`} style={{ width: '100%', minHeight: '22px' }} />
+                        </div>
                       </div>
-                      <div className="col-span-1 border-r p-1" style={{ borderColor: '#008000', minHeight: '22px' }}>
-                        <EditableSpanWrapper field={`empty${i}_rs`} style={{ width: '100%', minHeight: '22px' }} />
-                      </div>
-                      <div className="col-span-1 p-1" style={{ minHeight: '22px' }}>
-                        <EditableSpanWrapper field={`empty${i}_paise`} style={{ width: '100%', minHeight: '22px' }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   
                   {/* Right Table - Total Expenses Only (Auto-calculated) */}
-                  <div className="grid grid-cols-5 border-t-2 text-xs font-semibold" style={{ borderColor: '#008000', backgroundColor: '#f9fafb' }}>
-                    <div className="col-span-3 border-r p-2 text-left" style={{ borderColor: '#008000' }}>{DISPLAY_NAMES.totalExpenses}</div>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#008000' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().rs || '0'}</span>
+                  <div className="grid grid-cols-5 border-t-2 text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
+                    <div className="col-span-3 border-r p-2 text-left" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>{DISPLAY_NAMES.totalExpenses}</div>
+                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{numberToMarathi(calculateTotalExpenses().rs || 0)}</span>
                     </div>
-                    <div className="col-span-1 p-2 text-right" style={{ borderColor: '#008000' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{calculateTotalExpenses().paise || '0'}</span>
+                    <div className="col-span-1 p-2 text-right" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{numberToMarathi(calculateTotalExpenses().paise || 0)}</span>
                     </div>
                   </div>
                   {/* Horizontal line after Total Expenses */}
-                  <div className="border-b-2" style={{ borderColor: '#008000', width: '100%', marginTop: '8px' }}></div>
-                  {/* Errors and omissions text below Total Expenses */}
-                  <div className="p-2 text-xs italic" style={{ textAlign: 'center', marginTop: '8px' }}>
-                    {DISPLAY_NAMES.errorsOmissions}
+                  <div className="border-b-2" style={{ borderColor: '#1f4fb9', width: '100%', marginTop: '8px' }}></div>
+                  {/* Container for Errors and omissions and Thanks text */}
+                  <div style={{ backgroundColor: '#f2eed3', width: '100%', padding: '8px 0' }}>
+                    {/* Errors and omissions text below Total Expenses */}
+                    <div className="text-xs italic" style={{ textAlign: 'center', padding: '4px 8px', color: '#4821c9' }}>
+                      {DISPLAY_NAMES.errorsOmissions}
+                    </div>
+                    {/* Thanks text below Errors and omissions */}
+                    <div style={{ textAlign: 'center', padding: '4px 8px', fontWeight: 'bold', fontSize: '16px', color: '#dc2626' }}>
+                      {DISPLAY_NAMES.thanks}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Combined Bottom Table */}
-            <div className="border-2 mb-4" style={{ borderColor: '#008000' }}>
+            <div className="border-2 mb-1" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
               <div className="grid grid-cols-12" style={{ minHeight: '150px' }}>
                 {/* Left Side - Terms and Conditions */}
-                <div className="col-span-5 p-3" style={{ fontSize: '11px', lineHeight: '1.6' }}>
-                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.salesSlipSent}</div>
-                  <div style={{ marginBottom: '4px' }}>
+                <div className="col-span-5 p-3" style={{ fontSize: '11px', lineHeight: '1.6', backgroundColor: '#f2eed3' }}>
+                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.salesSlipSent}</div>
+                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>
                     {DISPLAY_NAMES.amountOfSlip}
                     <EditableSpanWrapper field="amountOfSlipName" style={{ width: '150px', display: 'inline-block', marginLeft: '8px' }} />
                   </div>
-                  <div style={{ marginBottom: '4px' }}>
+                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>
                     {DISPLAY_NAMES.toBeCollected}
                     <EditableSpanWrapper field="toBeCollectedPlace" style={{ width: '100px', display: 'inline-block', marginLeft: '8px' }} />
                     .
                   </div>
-                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.ifNotReceived}</div>
-                  <div style={{ marginBottom: '4px' }}>{DISPLAY_NAMES.noComplaints}</div>
-                  <div style={{ marginTop: '8px', fontWeight: 'bold' }}>{DISPLAY_NAMES.thanks}</div>
+                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.ifNotReceived}</div>
+                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.noComplaints}</div>
                 </div>
 
-                {/* Center - Grand Total (showing Net Balance) */}
-                <div className="col-span-2 p-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: '12px', paddingLeft: '0', paddingRight: '0' }}>
-                  <div className="border-2 p-2" style={{ borderColor: '#008000', width: '200%', minWidth: '350px', height: '45px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', backgroundColor: '#f0f9ff', marginRight: '-280px', padding: '8px 12px' }}>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#008000', whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.grandTotal}</span>
-                    <span className="bg-red-600 text-white px-2 py-0.5 text-xs font-bold" style={{ whiteSpace: 'nowrap' }}>{DISPLAY_NAMES.rs}</span>
-                    <span style={{ minWidth: '120px', flex: 1, minHeight: '18px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right' }}>
-                      {calculateNetBalance().rs !== null ? `${calculateNetBalance().isNegative ? '-' : ''}${calculateNetBalance().rs}.${String(calculateNetBalance().paise || '0').padStart(2, '0')}` : ''}
-                    </span>
-                  </div>
-                </div>
+                {/* Center - Empty (Grand Total moved to overlay) */}
+                <div className="col-span-2 p-3" style={{ backgroundColor: '#f2eed3' }}></div>
 
                 {/* Right Side - Signature */}
-                <div className="col-span-5 p-3 flex flex-col justify-end items-end" style={{ fontSize: '11px' }}>
-                  <div className="flex flex-col justify-end items-center" style={{ textAlign: 'center' }}>
-                    <div className="text-xs mb-2">{DISPLAY_NAMES.yoursSincerely}</div>
-                    <div className="text-xs">{DISPLAY_NAMES.signatureName}</div>
+                <div className="col-span-5 p-3 flex flex-col justify-center items-end" style={{ backgroundColor: '#f2eed3', minHeight: '100%' }}>
+                  <div style={{ marginTop: '20px', display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '20px', color: '#dc2626', marginBottom: '8px', textAlign: 'center', width: '100%' }}>{DISPLAY_NAMES.yoursSincerely}</div>
+                    <div style={{ fontWeight: 'bold', fontSize: '20px', color: '#dc2626', textAlign: 'right', width: '100%' }}>{DISPLAY_NAMES.signatureName}</div>
                   </div>
                 </div>
               </div>
@@ -860,3 +1105,4 @@ function CreateInvoiceDirectPage() {
 }
 
 export default CreateInvoiceDirectPage;
+
