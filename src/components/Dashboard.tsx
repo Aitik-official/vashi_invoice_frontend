@@ -406,23 +406,17 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
             <div className="overflow-y-auto flex-1" style={{ maxHeight: 'calc(100vh - 300px)' }}>
               <table className="w-full text-left text-lg whitespace-nowrap table-fixed" style={{ tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
-                  <col style={{ width: '6%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '30%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '20%' }} />
                 </colgroup>
                 <thead className="bg-orange-50 sticky top-0 z-10">
                   <tr className="border-b-2 border-orange-200">
                     <th className="px-2 py-4 text-gray-700 font-semibold">SR.</th>
                     <th className="px-2 py-4 text-gray-700 font-semibold">Invoice No.</th>
                     <th className="px-2 py-4 text-gray-700 font-semibold">Client Name</th>
-                    <th className="px-2 py-4 text-gray-700 font-semibold">Property</th>
-                    <th className="px-2 py-4 text-gray-700 font-semibold">Centre</th>
-                    <th className="px-2 py-4 text-gray-700 font-semibold">Circuit</th>
                     <th className="px-2 py-4 text-gray-700 font-semibold">Invoice Date</th>
                     <th className="px-2 py-4 text-gray-700 font-semibold">Actions</th>
                   </tr>
@@ -435,18 +429,9 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
                         <td className="px-2 py-4 text-gray-700 font-semibold">{idx + 1}</td>
                         <td className="px-2 py-4 text-gray-700 font-semibold">{displayInvoiceNo(inv)}</td>
                         <td className="px-2 py-4 text-gray-700 font-semibold truncate" title={inv.data?.clientName || inv.clientName || ''}>
-                          {inv.data?.clientName || inv.clientName}
+                          {inv.data?.clientName || inv.clientName || '-'}
                         </td>
-                        <td className="px-2 py-4 text-gray-700 font-semibold truncate" title={inv.data?.property || inv.property || ''}>
-                          {inv.data?.property || inv.property || '-'}
-                        </td>
-                        <td className="px-2 py-4 text-gray-700 font-semibold truncate" title={inv.data?.centre || ''}>
-                          {inv.data?.centre || '-'}
-                        </td>
-                        <td className="px-2 py-4 text-gray-700 font-semibold truncate" title={inv.data?.businessTerritory || inv.businessTerritory || ''}>
-                          {inv.data?.businessTerritory || inv.businessTerritory || '-'}
-                        </td>
-                        <td className="px-2 py-4 text-gray-600 font-semibold">{inv.data?.invoiceDate || inv.invoiceDate}</td>
+                        <td className="px-2 py-4 text-gray-600 font-semibold">{inv.data?.invoiceDate || inv.invoiceDate || '-'}</td>
                         <td className="px-2 py-4">
                           <div className="relative actions-dropdown">
                             <button
