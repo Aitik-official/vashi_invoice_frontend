@@ -120,7 +120,7 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
 
   // Filtered data based on search and filter
   const filteredInvoices = invoices.filter(inv => {
-    const clientName = inv.data?.clientName || inv.clientName || '';
+    const clientName = inv.data?.mrRaRa || inv.mrRaRa || inv.data?.clientName || inv.clientName || '';
     const displayInvoiceNo = (inv.data as any)?.["In_no"] || '';
     const centre = inv.data?.centre || '';
     const placeOfService = inv.data?.placeOfService || '';
@@ -428,8 +428,8 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
                       <tr key={inv._id || idx} className="border-b border-orange-100 hover:bg-orange-50 transition-colors">
                         <td className="px-2 py-4 text-gray-700 font-semibold">{idx + 1}</td>
                         <td className="px-2 py-4 text-gray-700 font-semibold">{displayInvoiceNo(inv)}</td>
-                        <td className="px-2 py-4 text-gray-700 font-semibold truncate" title={inv.data?.clientName || inv.clientName || ''}>
-                          {inv.data?.clientName || inv.clientName || '-'}
+                        <td className="px-2 py-4 text-gray-700 font-semibold truncate" title={inv.data?.mrRaRa || inv.mrRaRa || inv.data?.clientName || inv.clientName || ''}>
+                          {inv.data?.mrRaRa || inv.mrRaRa || inv.data?.clientName || inv.clientName || '-'}
                         </td>
                         <td className="px-2 py-4 text-gray-600 font-semibold">{inv.data?.invoiceDate || inv.invoiceDate || '-'}</td>
                         <td className="px-2 py-4">
