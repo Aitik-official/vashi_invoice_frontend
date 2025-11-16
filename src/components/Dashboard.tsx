@@ -4,6 +4,7 @@ import Link from 'next/link';
 import InvoicePreview from './InvoicePreview';
 import EditPreview from './Edit_preview';
 import { generateStandardizedPDF } from '../utils/pdfGenerator';
+import { parseMarathiNumber } from '../utils/marathiDigits';
 
 const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
   const [invoices, setInvoices] = useState<any[]>([]);
