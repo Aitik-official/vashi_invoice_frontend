@@ -769,10 +769,10 @@ function CreateInvoiceDirectPage() {
           style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
           id="invoice-preview-container"
         >
-          {/* Header - Single Image */}
-          <div style={{ width: '100%', margin: 0, padding: 0 }}>
-            <img 
-              src="/inovice_formatting/invoice-header.png" 
+          {/* Header - Single Image aligned with inner content width */}
+          <div style={{ width: '100%', margin: 0, padding: '1rem 1rem 0 1rem', boxSizing: 'border-box' }}>
+            <img
+              src="/inovice_formatting/baban.jpg" 
               alt="Invoice Header" 
               style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
             />

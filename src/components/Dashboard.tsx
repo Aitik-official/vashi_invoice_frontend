@@ -16,14 +16,102 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
   const [editInvoice, setEditInvoice] = useState<any>(null);
   const [backendError, setBackendError] = useState<string>('');
 
-  // Memoize invoice data for preview
+  // Get invoice data for InvoicePreview - transform saved data to match InvoicePreview format
+  const getInvoiceData = (inv: any) => {
+    if (!inv) return {};
+    const data = inv.data || {};
+    
+    // Transform goods table data from individual row fields to goodsTable array
+    const goodsTable: any[] = [];
+    for (let i = 0; i < 13; i++) {
+      const details = data[`row${i}_details`] || '';
+      const piece = data[`row${i}_item`] || '';
+      const crates = data[`row${i}_piece`] || '';
+      const price = data[`row${i}_price`] || '';
+      
+      // Calculate amount from piece, crates, and price if available
+      let amount = 0;
+      if (piece && price) {
+        const pieceNum = parseMarathiNumber(String(piece));
+        const priceNum = parseMarathiNumber(String(price));
+        amount = pieceNum * priceNum;
+      }
+      
+      if (details || piece || crates || price || amount) {
+        goodsTable.push({
+          details: details,
+          detailsOfGoods: details,
+          piece: piece,
+          crates: crates,
+          price: price,
+          amount: amount || data[`row${i}_amount`] || ''
+        });
+      }
+    }
+    
+    // Transform expenses data
+    const expensesData: any[] = [];
+    const expenseNames = ['commission', 'porterage', 'carRental', 'bundleExpenses', 'hundekariExpenses', 'spaceRent', 'warai', 'otherExpenses'];
+    for (let i = 0; i < 8; i++) {
+      const rs = data[`expense${i}_rs`] || '';
+      const paise = data[`expense${i}_paise`] || '';
+      if (rs || paise) {
+        expensesData.push({
+          name: expenseNames[i],
+          rs: rs,
+          paise: paise
+        });
+      }
+    }
+    
+    // Calculate totals
+    const calculateTotalSales = () => {
+      let totalPaise = 0;
+      goodsTable.forEach((row: any) => {
+        if (row.amount) {
+          const amountNum = parseMarathiNumber(String(row.amount));
+          totalPaise += Math.round(amountNum * 100);
+        }
+      });
+      const totalRs = Math.floor(totalPaise / 100);
+      const remainingPaise = totalPaise % 100;
+      return { rs: totalRs, paise: remainingPaise };
+    };
+    
+    const calculateTotalExpenses = () => {
+      let totalPaise = 0;
+      expensesData.forEach((exp: any) => {
+        const rs = parseMarathiNumber(String(exp.rs || '0'));
+        const paise = parseMarathiNumber(String(exp.paise || '0'));
+        totalPaise += (rs * 100) + paise;
+      });
+      const totalRs = Math.floor(totalPaise / 100);
+      const remainingPaise = totalPaise % 100;
+      return { rs: totalRs, paise: remainingPaise };
+    };
+    
+    const totalSales = calculateTotalSales();
+    const totalExpenses = calculateTotalExpenses();
+    const netBalance = {
+      rs: totalSales.rs - totalExpenses.rs,
+      paise: totalSales.paise - totalExpenses.paise,
+      isNegative: (totalSales.rs - totalExpenses.rs) < 0 || ((totalSales.rs - totalExpenses.rs) === 0 && totalSales.paise < totalExpenses.paise)
+    };
+    
+    // Only use Excel data, remove backend-generated fields
+    return {
+      ...data,
+      goodsTable: goodsTable,
+      expenses: expensesData,
+      // Remove invoiceId and invoiceNo - only use Excel data
+    };
+  };
+
+  // Memoize invoice data for preview - use getInvoiceData to transform the data
   const memoizedInvoiceData = useMemo(() => {
     if (!selectedInvoice) return {};
     try {
-      const data = selectedInvoice.data || {};
-      // ONLY use Excel data, exclude backend fields like _id
-      const { _id, __v, ...excelData } = data;
-      return excelData;
+      return getInvoiceData(selectedInvoice);
     } catch (error) {
       return {};
     }
@@ -166,18 +254,6 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
     return matchesFilter;
   });
 
-  // Get invoice data for InvoicePreview
-  const getInvoiceData = (inv: any) => {
-    if (!inv) return {};
-    const data = inv.data || {};
-    
-    // Only use Excel invoice number, remove backend-generated fields
-    return {
-      ...data,
-      // Remove invoiceId and invoiceNo - only use Excel data
-    };
-  };
-
   // Function to find Excel invoice number - ONLY use "In_no" field
   const findExcelInvoiceNumber = (inv: any) => {
     const data = inv.data || {};
@@ -211,17 +287,25 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
   const handleSaveEdit = async (updated: any) => {
     if (!editInvoice?._id) return;
     try {
+      // Ensure we're saving the invoice data structure correctly
+      const invoiceData = updated?.data || updated;
       const res = await fetch(`/api/proxy?path=invoices/${editInvoice._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: updated }),
+        body: JSON.stringify({ data: invoiceData }),
       });
       if (res.ok) {
-        setInvoices(prev => prev.map(inv => inv._id === editInvoice._id ? { ...inv, data: updated } : inv));
+        setInvoices(prev => prev.map(inv => inv._id === editInvoice._id ? { ...inv, data: invoiceData } : inv));
         setShowEdit(false);
         setEditInvoice(null);
+        alert('Invoice updated successfully!');
+      } else {
+        alert('Error updating invoice. Please try again.');
       }
-    } catch {}
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      alert('Error updating invoice. Please try again.');
+    }
   };
 
   // Delete handler
@@ -557,7 +641,17 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
               </button>
             </div>
             <div className="overflow-y-auto p-6 flex justify-center" style={{ maxHeight: '70vh', overflowX: 'hidden' }}>
-              <EditPreview data={editInvoice} onChange={setEditInvoice} showDownloadButton={false} />
+              <EditPreview 
+                data={editInvoice?.data || editInvoice || {}} 
+                onChange={(updatedData) => {
+                  // Update the editInvoice state with the new data
+                  setEditInvoice((prev: any) => ({
+                    ...prev,
+                    data: updatedData
+                  }));
+                }} 
+                showDownloadButton={false} 
+              />
             </div>
           </div>
         </div>

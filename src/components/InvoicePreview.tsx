@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { generateStandardizedPDF } from "../utils/pdfGenerator";
+import { parseMarathiNumber, englishToMarathi } from "../utils/marathiDigits";
 
 // Expected data structure for each cinema row (from Excel):
 // {
@@ -415,33 +416,58 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
   const parseAmountToNumber = (row: any) => {
     if (!row) return 0;
     if (row.amount !== undefined && row.amount !== null && row.amount !== '') {
-      const amountNumber = safeNumber(row.amount);
+      // Handle Marathi digits in amount
+      const amountNumber = parseMarathiNumber(String(row.amount));
       return amountNumber;
     }
     if (row.rs !== undefined || row.paise !== undefined) {
-      const rs = safeNumber(row.rs);
-      const paise = safeNumber(row.paise);
+      const rs = parseMarathiNumber(String(row.rs || '0'));
+      const paise = parseMarathiNumber(String(row.paise || '0'));
       return rs + paise / 100;
     }
     return 0;
   };
 
   const formatCurrencyValue = (value: number) => {
-    if (!value) return '';
-    return value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (!value && value !== 0) return '';
+    const formatted = value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return englishToMarathi(formatted);
   };
 
   const formatRowAmount = (row: any) => {
     const amountNumber = parseAmountToNumber(row);
-    if (!amountNumber) return '';
-    return amountNumber.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (!amountNumber && amountNumber !== 0) return '';
+    const formatted = amountNumber.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return englishToMarathi(formatted);
   };
 
   const goodsRowCount = 13;
   const goodsRows = Array.from({ length: goodsRowCount }, (_, index) => goodsTable[index] || {});
 
+  // Calculate total expenses from expenses data
+  const calculateTotalExpensesFromData = () => {
+    let totalPaise = 0;
+    // Check if expenses array exists
+    if (Array.isArray((data as any)?.expenses)) {
+      (data as any).expenses.forEach((exp: any) => {
+        const rs = parseMarathiNumber(String(exp.rs || '0'));
+        const paise = parseMarathiNumber(String(exp.paise || '0'));
+        totalPaise += (rs * 100) + paise;
+      });
+    } else {
+      // Fallback: calculate from individual expense fields
+      for (let i = 0; i < 8; i++) {
+        const rs = parseMarathiNumber(String((data as any)[`expense${i}_rs`] || '0'));
+        const paise = parseMarathiNumber(String((data as any)[`expense${i}_paise`] || '0'));
+        totalPaise += (rs * 100) + paise;
+      }
+    }
+    return totalPaise / 100;
+  };
+
   const goodsTotalAmount = goodsTable.reduce((sum: number, row: any) => sum + parseAmountToNumber(row), 0);
-  const goodsNetAmount = goodsTotalAmount - totalDeduction;
+  const totalDeductionAmount = calculateTotalExpensesFromData();
+  const goodsNetAmount = goodsTotalAmount - totalDeductionAmount;
 
   const rowHeight = 22;
   const baseCellStyle = {
@@ -472,10 +498,10 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
         className="w-[800px] mx-auto bg-white shadow-lg text-black"
         style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
       >
-        {/* Header - Single Image replacing logo and company details - Full width from top */}
-        <div style={{ width: '100%', margin: 0, padding: 0 }}>
+        {/* Header - Single Image replacing logo and company details - aligned with inner content width */}
+        <div style={{ width: '100%', margin: 0, padding: '1rem 1rem 0 1rem', boxSizing: 'border-box' }}>
           <img 
-            src="/inovice_formatting/invoice-header.png" 
+            src="/inovice_formatting/baban.jpg" 
             alt="Invoice Header" 
             style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
           />
@@ -669,7 +695,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                   >
                     <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#f2eed3', gridColumn: '1' }}></div>
                     <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.expenses}</div>
-                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>{formatCurrencyValue(totalDeduction)}</div>
+                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>{formatCurrencyValue(totalDeductionAmount)}</div>
                   </div>
                   {/* Net Balance Row */}
                   <div

@@ -194,6 +194,18 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
   const previewRef = useRef<HTMLDivElement>(null);
   const hiddenPreviewRef = useRef<HTMLDivElement>(null);
 
+  // Update invoice state when data prop changes (for when editing existing invoice)
+  useEffect(() => {
+    if (data && Object.keys(data).length > 0) {
+      const newMergedData = { ...defaultInvoice, ...data };
+      if (data?.invoiceNo) {
+        newMergedData.invoiceNo = data.invoiceNo;
+      }
+      setInvoice(newMergedData);
+    }
+    // eslint-disable-next-line
+  }, [data]);
+
   // Call onChange whenever invoice changes
   useEffect(() => {
     if (onChange) onChange(invoice);
@@ -414,10 +426,10 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
         className="w-[800px] mx-auto bg-white shadow-2xl rounded-md text-black font-sans border border-black"
         style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1100px', boxSizing: 'border-box', position: 'relative', overflowY: 'auto', overflowX: 'hidden', marginTop: 32, marginBottom: 32, padding: 0 }}
       >
-        {/* Header - Single Image replacing logo and company details - Full width from top */}
-        <div style={{ width: '100%', margin: 0, padding: 0 }}>
+        {/* Header - Single Image replacing logo and company details - aligned with inner content width */}
+        <div style={{ width: '100%', margin: 0, padding: '1rem 1rem 0 1rem', boxSizing: 'border-box' }}>
           <img 
-            src="/inovice_formatting/invoice-header.png" 
+            src="/inovice_formatting/baban.jpg" 
             alt="Invoice Header" 
             style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
           />
