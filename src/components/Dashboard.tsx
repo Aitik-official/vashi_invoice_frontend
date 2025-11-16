@@ -29,13 +29,20 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
       const piece = data[`row${i}_item`] || '';
       const crates = data[`row${i}_piece`] || '';
       const price = data[`row${i}_price`] || '';
-      
-      // Calculate amount from piece, crates, and price if available
-      let amount = 0;
-      if (piece && price) {
-        const pieceNum = parseMarathiNumber(String(piece));
+      const storedAmount = data[`row${i}_amount`] || '';
+
+      // Prefer stored amount from database; if not available, calculate from quantity (piece or crates) and price
+      let amount: number | string = storedAmount;
+      if (!storedAmount && price && (piece || crates)) {
+        const pieceNum = parseMarathiNumber(String(piece || '0'));
+        const cratesNum = parseMarathiNumber(String(crates || '0'));
         const priceNum = parseMarathiNumber(String(price));
-        amount = pieceNum * priceNum;
+        const quantity = pieceNum > 0 ? pieceNum : cratesNum;
+        if (!isNaN(quantity) && quantity > 0 && !isNaN(priceNum)) {
+          amount = quantity * priceNum;
+        } else {
+          amount = '';
+        }
       }
       
       if (details || piece || crates || price || amount) {
@@ -45,7 +52,7 @@ const Dashboard = ({ onLogout }: { onLogout?: () => void }) => {
           piece: piece,
           crates: crates,
           price: price,
-          amount: amount || data[`row${i}_amount`] || ''
+          amount: amount
         });
       }
     }

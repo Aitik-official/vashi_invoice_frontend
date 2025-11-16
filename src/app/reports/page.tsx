@@ -13,35 +13,69 @@ const ReportsPage = () => {
   const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
-          fetch('/api/proxy')
+    fetch('/api/proxy')
       .then(res => res.json())
       .then(data => {
-        setInvoices(data);
+        if (Array.isArray(data)) {
+          setInvoices(data);
+        } else {
+          console.error('ReportsPage: Invalid data format received from server', data);
+          setInvoices([]);
+        }
         setLoading(false);
       })
       .catch(error => {
         console.error('Error fetching invoices:', error);
         setLoading(false);
+        setInvoices([]);
       });
   }, []);
 
+  // Always work with a safe array to avoid runtime errors if data is malformed
+  const invoicesArray = Array.isArray(invoices) ? invoices : [];
+
+  // Helper to safely get numeric grand total from invoice data
+  const getGrandTotalFromInvoice = (inv: any): number => {
+    const data = inv?.data || {};
+    const raw =
+      data.grandTotalRs ??
+      data.grandTotal ??
+      data.netAmount ??
+      data.totalCollection ??
+      0;
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      const cleaned = raw.replace(/[^0-9.\-]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
   // Calculate report statistics
-  const totalInvoices = invoices.length;
-  const totalRevenue = invoices.reduce((sum, inv) => {
-    const collection = inv.data?.totalCollection || 0;
-    return sum + (typeof collection === 'string' ? parseFloat(collection.replace(/,/g, '')) : collection);
+  const totalInvoices = invoicesArray.length;
+  const totalRevenue = invoicesArray.reduce((sum, inv) => {
+    return sum + getGrandTotalFromInvoice(inv);
   }, 0);
   
   // Helper function to parse date safely for month calculations
   const parseDateForMonth = (dateString: string) => {
     if (!dateString) return null;
     
-    // Handle DD/MM/YYYY format (as shown in the image)
+    // Handle DD/MM/YYYY or DD-MM-YYYY format
     if (dateString.includes('/')) {
       const parts = dateString.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0]);
         const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+        const year = parseInt(parts[2]);
+        return new Date(year, month, day);
+      }
+    } else if (dateString.includes('-')) {
+      const parts = dateString.split('-');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1;
         const year = parseInt(parts[2]);
         return new Date(year, month, day);
       }
@@ -52,7 +86,7 @@ const ReportsPage = () => {
     return !isNaN(date.getTime()) ? date : null;
   };
 
-  const thisMonthInvoices = invoices.filter(inv => {
+  const thisMonthInvoices = invoicesArray.filter(inv => {
     const date = inv.data?.invoiceDate || inv.createdAt;
     if (!date) return false;
     const invoiceDate = parseDateForMonth(date);
@@ -61,7 +95,7 @@ const ReportsPage = () => {
     return invoiceDate.getMonth() === now.getMonth() && invoiceDate.getFullYear() === now.getFullYear();
   }).length;
 
-  const thisMonthRevenue = invoices.filter(inv => {
+  const thisMonthRevenue = invoicesArray.filter(inv => {
     const date = inv.data?.invoiceDate || inv.createdAt;
     if (!date) return false;
     const invoiceDate = parseDateForMonth(date);
@@ -69,12 +103,11 @@ const ReportsPage = () => {
     const now = new Date();
     return invoiceDate.getMonth() === now.getMonth() && invoiceDate.getFullYear() === now.getFullYear();
   }).reduce((sum, inv) => {
-    const collection = inv.data?.totalCollection || 0;
-    return sum + (typeof collection === 'string' ? parseFloat(collection.replace(/,/g, '')) : collection);
+    return sum + getGrandTotalFromInvoice(inv);
   }, 0);
 
   // Calculate last month statistics
-  const lastMonthInvoices = invoices.filter(inv => {
+  const lastMonthInvoices = invoicesArray.filter(inv => {
     const date = inv.data?.invoiceDate || inv.createdAt;
     if (!date) return false;
     const invoiceDate = parseDateForMonth(date);
@@ -84,7 +117,7 @@ const ReportsPage = () => {
     return invoiceDate.getMonth() === lastMonth.getMonth() && invoiceDate.getFullYear() === lastMonth.getFullYear();
   }).length;
 
-  const lastMonthRevenue = invoices.filter(inv => {
+  const lastMonthRevenue = invoicesArray.filter(inv => {
     const date = inv.data?.invoiceDate || inv.createdAt;
     if (!date) return false;
     const invoiceDate = parseDateForMonth(date);
@@ -93,8 +126,7 @@ const ReportsPage = () => {
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     return invoiceDate.getMonth() === lastMonth.getMonth() && invoiceDate.getFullYear() === lastMonth.getFullYear();
   }).reduce((sum, inv) => {
-    const collection = inv.data?.totalCollection || 0;
-    return sum + (typeof collection === 'string' ? parseFloat(collection.replace(/,/g, '')) : collection);
+    return sum + getGrandTotalFromInvoice(inv);
   }, 0);
 
   // Helper function to parse date safely
@@ -132,15 +164,15 @@ const ReportsPage = () => {
     return date && !isNaN(date.getTime()) ? date : null;
   };
 
-  // Get unique movies for dropdown
-  const uniqueMovies = Array.from(new Set(
-    invoices
-      .map(inv => inv.data?.movieName || '')
-      .filter(movie => movie && movie.trim() !== '')
+  // Get unique client names (Mr. Ra. Ra. style) for dropdown
+  const uniqueClients = Array.from(new Set(
+    invoicesArray
+      .map(inv => inv.data?.mrRaRa || '')
+      .filter(name => name && name.trim() !== '')
   )).sort();
 
-  // Filter invoices by date range and/or movie name
-  const filteredInvoices = invoices.filter(inv => {
+  // Filter invoices by date range and/or client name
+  const filteredInvoices = invoicesArray.filter(inv => {
     // Date filter (optional)
     let dateMatch = true;
     if (startDate && endDate) {
@@ -153,28 +185,28 @@ const ReportsPage = () => {
       dateMatch = invoiceDate >= start && invoiceDate <= end;
     }
     
-    // Movie filter (optional)
-    const movieMatch = !selectedMovie || inv.data?.movieName === selectedMovie;
+    // Client filter (optional)
+    const movieMatch = !selectedMovie || inv.data?.mrRaRa === selectedMovie;
     
     return dateMatch && movieMatch;
   });
 
   // Generate Excel report
   const generateExcelReport = () => {
-    // Check if at least one filter is applied
+    // Check if at least one filter is applied (date range or client)
     if (!startDate && !endDate && !selectedMovie) {
-      alert('Please select at least one filter (date range or movie name)');
+      alert('Please select at least one filter (date range or client)');
       return;
     }
 
     if (filteredInvoices.length === 0) {
       let message = 'No invoices found';
       if (startDate && endDate && selectedMovie) {
-        message = `No invoices found for the selected date range and movie "${selectedMovie}"`;
+        message = `No invoices found for the selected date range and client "${selectedMovie}"`;
       } else if (startDate && endDate) {
         message = 'No invoices found for the selected date range';
       } else if (selectedMovie) {
-        message = `No invoices found for movie "${selectedMovie}"`;
+        message = `No invoices found for client "${selectedMovie}"`;
       }
       alert(message);
       return;
@@ -202,61 +234,35 @@ const ReportsPage = () => {
       const excelData = filteredInvoices.map((inv, index) => {
         const data = inv.data || {};
         
-        // Extract daily collections from table
+        // Extract daily collections from table (if present)
         const table = data.table || [];
         const dailyCollections: { [key: string]: number } = {};
-        
         table.forEach((row: any) => {
           if (row.date && row.collection) {
-            dailyCollections[row.date] = row.collection;
+            dailyCollections[row.date] = Number(row.collection) || 0;
           }
         });
 
-        // Calculate totals
-        const totalCollection = data.totalCollection || 0;
-        const showTax = data.showTax || 0;
-        const netAmount = totalCollection - showTax;
-        const sharePercent = data.share || 45;
-        const shareAmount = (netAmount * sharePercent) / 100;
-        
-        // Calculate GST
-        const gstRate = data.gstRate || 18;
-        const gstType = data.gstType || 'CGST/SGST';
-        let igst = 0, cgst = 0, sgst = 0;
-        
-        if (gstType === 'IGST') {
-          igst = (shareAmount * gstRate) / 100;
-        } else {
-          cgst = (shareAmount * gstRate) / 200; // Half of GST rate
-          sgst = (shareAmount * gstRate) / 200; // Half of GST rate
-        }
-        
-        const totalNet = shareAmount + igst + cgst + sgst;
+        // Calculate totals based on current Excel-driven setup
+        const totalCollection = Number(data.totalCollection || 0);
+        const totalExpenses = Number(data.expensesTotal || 0);
+        const grandTotal = Number(data.grandTotalRs || data.netAmount || 0);
 
-        // Create row object with exact sequence as per the images
+        // Create row object for current report: include client, totals and expenses
         const rowData: any = {
           'SR. NO': index + 1,
-          'LANGUAGE': data.language || '',
-          'CINEMA NAME': data.property || '',
-          'City': data.centre || '',
-          'CIRCUIT': data.businessTerritory || ''
+          'CLIENT (MR. RA. RA.)': data.mrRaRa || '',
+          'PLACE': data.place || '',
+          'CITY': data.centre || '',
+          'TOTAL SALES': totalCollection.toFixed(2),
+          'TOTAL EXPENSES': totalExpenses.toFixed(2),
+          'GRAND TOTAL': grandTotal.toFixed(2),
         };
 
-        // Add dynamic date columns in the middle (between CIRCUIT and TOTAL) with 2 decimal places
+        // Add dynamic date columns (daily collections) with 2 decimal places
         sortedDates.forEach(date => {
           rowData[date] = Number(dailyCollections[date] || 0).toFixed(2);
         });
-
-        // Add the remaining columns in exact order as per images with 2 decimal places
-        rowData['TOTAL'] = Number(totalCollection).toFixed(2);
-        rowData['Show Tax'] = Number(showTax).toFixed(2);
-        rowData['NET'] = Number(netAmount).toFixed(2);
-        rowData['%'] = sharePercent;
-        rowData['SHARE'] = Number(shareAmount).toFixed(2);
-        rowData['IGST'] = Number(igst).toFixed(2);
-        rowData['CGST'] = Number(cgst).toFixed(2);
-        rowData['SGST'] = Number(sgst).toFixed(2);
-        rowData['TOTAL NET'] = Number(totalNet).toFixed(2);
 
         return rowData;
       });
@@ -265,23 +271,16 @@ const ReportsPage = () => {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(excelData);
 
-      // Set column widths dynamically with exact sequence as per images
+      // Set column widths dynamically
       const colWidths = [
         { wch: 8 },  // SR. NO
-        { wch: 12 }, // LANGUAGE
-        { wch: 30 }, // CINEMA NAME
-        { wch: 15 }, // City
-        { wch: 15 }, // CIRCUIT
-        ...sortedDates.map(() => ({ wch: 12 })), // Dynamic date columns (in middle)
-        { wch: 12 }, // TOTAL
-        { wch: 12 }, // Show Tax
-        { wch: 12 }, // NET
-        { wch: 8 },  // %
-        { wch: 12 }, // SHARE
-        { wch: 12 }, // IGST
-        { wch: 12 }, // CGST
-        { wch: 12 }, // SGST
-        { wch: 12 }  // TOTAL NET
+        { wch: 25 }, // CLIENT (MR. RA. RA.)
+        { wch: 15 }, // PLACE
+        { wch: 15 }, // CITY
+        { wch: 14 }, // TOTAL SALES
+        { wch: 16 }, // TOTAL EXPENSES
+        { wch: 14 }, // GRAND TOTAL
+        ...sortedDates.map(() => ({ wch: 12 })), // Dynamic date columns
       ];
       ws['!cols'] = colWidths;
 
@@ -376,16 +375,16 @@ const ReportsPage = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Movie Name (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client (Mr. Ra. Ra.) (Optional)</label>
                 <select
                   value={selectedMovie}
                   onChange={(e) => setSelectedMovie(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-900 font-medium min-w-[200px]"
                 >
-                  <option value="">All Movies</option>
-                  {uniqueMovies.map((movie) => (
-                    <option key={movie} value={movie}>
-                      {movie}
+                  <option value="">All Clients</option>
+                  {uniqueClients.map((client) => (
+                    <option key={client} value={client}>
+                      {client}
                     </option>
                   ))}
                 </select>
@@ -400,12 +399,12 @@ const ReportsPage = () => {
                  </button>
                </div>
             </div>
-                         {(startDate || endDate || selectedMovie) && (
+            {(startDate || endDate || selectedMovie) && (
                <div className="text-sm text-gray-600">
                  Found {filteredInvoices.length} invoices
                  {startDate && endDate && ` between ${new Date(startDate).toLocaleDateString()} and ${new Date(endDate).toLocaleDateString()}`}
-                 {selectedMovie && ` for movie "${selectedMovie}"`}
-                 {!startDate && !endDate && selectedMovie && ` (all dates)`}
+                {selectedMovie && ` for client "${selectedMovie}"`}
+                {!startDate && !endDate && selectedMovie && ` (all dates)`}
                </div>
              )}
           </div>
@@ -511,13 +510,13 @@ const ReportsPage = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-orange-100">
-                {invoices.slice(0, 10).map((inv, idx) => (
+                {invoicesArray.slice(0, 10).map((inv, idx) => (
                   <tr key={inv._id} className="hover:bg-orange-50">
                     <td className="px-4 py-2 text-sm text-gray-900">
                           {inv.data?.["In_no"] || 'No "In_no" Found'}
                         </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {inv.data?.clientName || inv.clientName}
+                      {inv.data?.mrRaRa || ''}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {inv.data?.invoiceDate || inv.invoiceDate}

@@ -674,7 +674,59 @@ function CreateInvoiceDirectPage() {
     setIsSaving(true);
     try {
       const invoiceNo = invoiceData["In_no"] || invoiceData.invoiceNo;
-      
+
+      // Calculate and attach all summary fields before saving
+      const totalSales = calculateTotalSales();
+      const totalExpenses = calculateTotalExpenses();
+      const netBalance = calculateNetBalance();
+
+      const totalSalesValue =
+        totalSales.rs === null || totalSales.paise === null
+          ? ''
+          : ((totalSales.rs * 100 + totalSales.paise) / 100).toFixed(2);
+
+      const totalExpensesValue =
+        totalExpenses.rs === null || totalExpenses.paise === null
+          ? ''
+          : ((totalExpenses.rs * 100 + totalExpenses.paise) / 100).toFixed(2);
+
+      const netBalanceValue =
+        netBalance.rs === null || netBalance.paise === null
+          ? ''
+          : ((netBalance.rs * 100 + netBalance.paise) / 100).toFixed(2);
+
+      // Per-row amounts (left table) to store in database so View uses same values
+      const rowAmounts: Record<string, string> = {};
+      for (let i = 0; i < 13; i++) {
+        const rowTotal = calculateRowTotal(i);
+        if (rowTotal.rs !== null && rowTotal.paise !== null) {
+          const value = ((rowTotal.rs * 100 + rowTotal.paise) / 100).toFixed(2);
+          rowAmounts[`row${i}_amount`] = value;
+        }
+      }
+
+      const enrichedInvoiceData = {
+        ...invoiceData,
+        ...rowAmounts,
+        // Total sales (left table)
+        totalSalesRs: totalSales.rs ?? '',
+        totalSalesPaise: totalSales.paise ?? '',
+        // Total expenses (right table + extra rows)
+        expensesRs: totalExpenses.rs ?? '',
+        expensesPaise: totalExpenses.paise ?? '',
+        // Net balance
+        netBalanceRs: netBalance.rs ?? '',
+        netBalancePaise: netBalance.paise ?? '',
+        // Grand total (for reports use)
+        grandTotalRs: netBalance.rs ?? '',
+        grandTotalPaise: netBalance.paise ?? '',
+        // Helper numeric fields used by reports
+        totalCollection: totalSalesValue,
+        expensesTotal: totalExpensesValue,
+        netAmount: netBalanceValue,
+        grandTotal: netBalanceValue,
+      };
+
       const checkResponse = await fetch('/api/proxy?endpoint=/api/invoices');
       const allInvoices = await checkResponse.json();
       
@@ -692,7 +744,7 @@ function CreateInvoiceDirectPage() {
       }
 
       const formData = new FormData();
-      formData.append('invoiceData', JSON.stringify([invoiceData]));
+      formData.append('invoiceData', JSON.stringify([enrichedInvoiceData]));
 
       const response = await fetch('/api/proxy', {
         method: 'POST',
@@ -741,9 +793,18 @@ function CreateInvoiceDirectPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Create via Excel button */}
+        {/* Header with back to Dashboard and Create via Excel button */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Create Invoice - Direct Entry</h1>
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <button className="p-2 bg-white hover:bg-orange-100 text-orange-600 rounded-lg transition shadow border border-orange-200">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-800">Create Invoice - Direct Entry</h1>
+          </div>
           <Link href="/create-invoice-excel">
             <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-lg transition shadow-lg">
               Create via Excel
