@@ -5,6 +5,7 @@ import { DISPLAY_NAMES } from '../../components/InvoicePreview';
 import { generateStandardizedPDF } from '../../utils/pdfGenerator';
 import InvoicePreview from '../../components/InvoicePreview';
 import { parseMarathiNumber, numberToMarathi, formatMarathiCurrency, englishToMarathi } from '../../utils/marathiDigits';
+import { convertInputToMarathi, convertToMarathi, convertInputToMarathiAsync } from '../../utils/marathiTransliteration';
 
 // EditableSpan component - completely uncontrolled, only updates state on blur
 const EditableSpan = React.memo(({ 
@@ -43,20 +44,37 @@ const EditableSpan = React.memo(({
   }, [initialValue]);
   
   // Don't update state during typing - only on blur
-  const handleBlur = () => {
+  const handleBlur = async () => {
     if (inputRef.current) {
       let finalValue = inputRef.current.value;
+      
       // For numeric fields, convert Marathi to English for storage but keep original for display
       // Check if field is a numeric field (rs, paise, price, piece, item, etc.)
       if (field.includes('_rs') || field.includes('_paise') || field.includes('_price') || 
-          field.includes('_piece') || field.includes('_item')) {
+          field.includes('_piece') || field.includes('_item') || field.includes('_amount')) {
         // Store in English digits for calculations, but display in Marathi
         const englishValue = parseMarathiNumber(finalValue).toString();
         // If user entered Marathi, convert to English for storage
         if (finalValue && /[०-९]/.test(finalValue)) {
           finalValue = englishValue;
+        } else {
+          // Convert English numbers to Marathi for display, but store in English
+          // The display will show Marathi, but we store English for calculations
+          finalValue = englishValue; // Store English for calculations
+        }
+      } else {
+        // For text fields (names, places, details, etc.), use async transliteration
+        // This converts English text to Marathi using Aksharamukha
+        // Numbers in text are also converted to Marathi digits
+        try {
+          finalValue = await convertInputToMarathiAsync(finalValue);
+        } catch (error) {
+          console.error('Transliteration error:', error);
+          // Fallback to synchronous conversion (numbers only)
+          finalValue = convertInputToMarathi(finalValue);
         }
       }
+      
       onChange(field, finalValue);
     }
   };
@@ -75,10 +93,10 @@ const EditableSpan = React.memo(({
         background: 'transparent',
         outline: 'none',
         textAlign: 'center',
-        fontSize: '12px',
+        fontSize: style.fontSize || '12px',
         padding: '0',
         width: style.width || '100%',
-        minHeight: '16px',
+        minHeight: style.minHeight || (style.fontSize === '14px' ? '18px' : '16px'),
       }}
       className="editable-field"
     />
@@ -115,11 +133,59 @@ function CreateInvoiceDirectPage() {
   const [isSaving, setIsSaving] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // Helper function to parse decimal amount and split into Rs and Paise
+  const parseDecimalAmount = (amountStr: string): { rs: string, paise: string } => {
+    if (!amountStr || amountStr.trim() === '') {
+      return { rs: '', paise: '' };
+    }
+    // Convert Marathi digits to English if present
+    const englishStr = amountStr.replace(/[०-९]/g, (char) => {
+      const marathiDigits = '०१२३४५६७८९';
+      return marathiDigits.indexOf(char).toString();
+    });
+    // Parse as decimal number
+    const amount = parseFloat(englishStr.replace(/[^0-9.]/g, ''));
+    if (isNaN(amount)) {
+      return { rs: '', paise: '' };
+    }
+    const rs = Math.floor(amount).toString();
+    const paise = Math.round((amount - Math.floor(amount)) * 100).toString();
+    return { rs, paise };
+  };
+
+  // Helper function to combine Rs and Paise into decimal string
+  const combineAmount = (rs: string | number, paise: string | number): string => {
+    const rsNum = typeof rs === 'string' ? parseMarathiNumber(rs) : (rs || 0);
+    const paiseNum = typeof paise === 'string' ? parseMarathiNumber(paise) : (paise || 0);
+    if (rsNum === 0 && paiseNum === 0) return '';
+    const total = rsNum + (paiseNum / 100);
+    return total.toFixed(2);
+  };
+
   const handleInputChange = useCallback((field: string, value: any) => {
-    setInvoiceData((prev: any) => ({
-      ...prev,
-      [field]: value
-    }));
+    // Handle expense amount fields - parse decimal and store as separate Rs/Paise
+    if (field.startsWith('expense') && field.endsWith('_amount')) {
+      const { rs, paise } = parseDecimalAmount(value);
+      const idx = field.replace('expense', '').replace('_amount', '');
+      setInvoiceData((prev: any) => ({
+        ...prev,
+        [`expense${idx}_rs`]: rs,
+        [`expense${idx}_paise`]: paise,
+      }));
+    } else if (field.startsWith('empty') && field.endsWith('_amount')) {
+      const { rs, paise } = parseDecimalAmount(value);
+      const idx = field.replace('empty', '').replace('_amount', '');
+      setInvoiceData((prev: any) => ({
+        ...prev,
+        [`empty${idx}_rs`]: rs,
+        [`empty${idx}_paise`]: paise,
+      }));
+    } else {
+      setInvoiceData((prev: any) => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   }, []);
 
   // Calculate total expenses from right table
@@ -769,9 +835,30 @@ function CreateInvoiceDirectPage() {
   };
 
   // EditableSpan wrapper - stable component that doesn't re-render on value changes
-  const EditableSpanWrapper = React.memo(({ field, style = {}, placeholder = "" }: { field: string, style?: any, placeholder?: string }) => {
-    // Get current value from state
-    const currentValue = invoiceData[field] || "";
+  // For amount fields, we need to recalculate from rs/paise, so we don't memoize them
+  const EditableSpanWrapper = ({ field, style = {}, placeholder = "", initialValue }: { field: string, style?: any, placeholder?: string, initialValue?: string }) => {
+    // Get current value from state or use provided initialValue
+    // For amount fields, always calculate from rs/paise to ensure it's up to date
+    let currentValue = initialValue !== undefined ? initialValue : (invoiceData[field] || "");
+    
+    // If field is an amount field, always calculate from rs/paise
+    if (field.endsWith('_amount')) {
+      const idx = field.replace('expense', '').replace('empty', '').replace('_amount', '');
+      const prefix = field.startsWith('expense') ? 'expense' : 'empty';
+      currentValue = combineAmount(invoiceData[`${prefix}${idx}_rs`] || '', invoiceData[`${prefix}${idx}_paise`] || '');
+    }
+    
+    // Convert to Marathi for display (numbers will be converted)
+    // For all fields, convert numbers to Marathi for display
+    if (currentValue) {
+      if (field.endsWith('_amount')) {
+        // Amount fields: convert the calculated amount to Marathi
+        currentValue = convertToMarathi(currentValue);
+      } else {
+        // Text fields: convert numbers in the text to Marathi
+        currentValue = convertToMarathi(currentValue);
+      }
+    }
     
     return (
       <EditableSpan
@@ -782,11 +869,7 @@ function CreateInvoiceDirectPage() {
         placeholder={placeholder}
       />
     );
-  }, (prevProps, nextProps) => {
-    // Only re-render if field or style changes - ignore all value changes
-    return prevProps.field === nextProps.field &&
-           JSON.stringify(prevProps.style) === JSON.stringify(nextProps.style);
-  });
+  };
   
   EditableSpanWrapper.displayName = 'EditableSpanWrapper';
 
@@ -840,16 +923,16 @@ function CreateInvoiceDirectPage() {
           </div>
 
           {/* Main Content Box - Editable */}
-          <div style={{ width: '100%', padding: '1rem', paddingTop: '0.5rem', fontSize: '12px' }}>
+          <div style={{ width: '100%', padding: '1rem', paddingTop: '0.5rem', fontSize: '14px' }}>
             {/* Top Header Section */}
             <div style={{ border: '2px solid #1f4fb9', padding: '8px', marginBottom: '0.25rem', backgroundColor: '#f2eed3' }}>
               {/* Top Line - Invoice No (left) and Date (right) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ display: 'inline-block' }}>
-                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES['In_no']}:</span> <EditableSpanWrapper field="In_no" style={{ width: '120px', display: 'inline-block' }} />
+                <span style={{ display: 'inline-block', fontSize: '14px' }}>
+                  <span style={{ color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES['In_no']}:</span> <EditableSpanWrapper field="In_no" style={{ width: '100px', display: 'inline-block', fontSize: '14px' }} />
                 </span>
-                <span style={{ display: 'inline-block' }}>
-                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES.date}:</span> <EditableSpanWrapper field="invoiceDate" style={{ width: '100px', display: 'inline-block' }} />
+                <span style={{ display: 'inline-block', fontSize: '14px' }}>
+                  <span style={{ color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.date}:</span> <EditableSpanWrapper field="invoiceDate" style={{ width: '90px', display: 'inline-block', fontSize: '14px' }} />
                 </span>
               </div>
               
@@ -857,31 +940,31 @@ function CreateInvoiceDirectPage() {
               <div style={{ marginBottom: '8px', lineHeight: '1.6' }}>
                 {/* First Line */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.mrRaRa}</span>
-                  <EditableSpanWrapper field="mrRaRa" style={{ flex: '1', minWidth: '200px' }} />
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.place}</span>
-                  <EditableSpanWrapper field="place" style={{ flex: '1', minWidth: '200px' }} />
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.to}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.mrRaRa}</span>
+                  <EditableSpanWrapper field="mrRaRa" style={{ flex: '1', minWidth: '150px', fontSize: '14px' }} />
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.place}</span>
+                  <EditableSpanWrapper field="place" style={{ flex: '1', minWidth: '120px', fontSize: '14px' }} />
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.to}</span>
                 </div>
                 
                 {/* Second Line */}
                 <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap', marginBottom: '8px', lineHeight: '1.6', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.loveGreetings}</span>
-                  <EditableSpanWrapper field="raRaNo" style={{ flex: 1, marginLeft: '8px', marginRight: '8px' }} />
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.loveGreetings}</span>
+                  <EditableSpanWrapper field="raRaNo" style={{ flex: 1, marginLeft: '8px', marginRight: '8px', fontSize: '14px' }} />
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
                   <span data-field="chequeDraftNo">
-                    <EditableSpanWrapper field="chequeDraftNo" style={{ width: '100px', marginLeft: '8px', marginRight: '8px' }} />
+                    <EditableSpanWrapper field="chequeDraftNo" style={{ width: '80px', marginLeft: '8px', marginRight: '8px', fontSize: '14px' }} />
                   </span>
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.received}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.received}</span>
                 </div>
                 
                 {/* Remaining lines */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', lineHeight: '1.6' }}>
                   <div style={{ width: '60%' }}>
-                    <div style={{ marginBottom: '4px', color: '#1670b5' }}>{DISPLAY_NAMES.salesDetails}</div>
+                    <div style={{ marginBottom: '4px', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.salesDetails}</div>
                     <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
-                      <span style={{ marginRight: '8px', color: '#1670b5' }}>{DISPLAY_NAMES.deposit}:</span>
-                      <EditableSpanWrapper field="deposit" style={{ flex: 1 }} />
+                      <span style={{ marginRight: '8px', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.deposit}:</span>
+                      <EditableSpanWrapper field="deposit" style={{ flex: 1, fontSize: '14px' }} />
                     </div>
                   </div>
                 </div>
@@ -896,11 +979,11 @@ function CreateInvoiceDirectPage() {
                   {/* Header Row */}
                   <div
                     className="grid border-b font-semibold text-center text-xs whitespace-nowrap"
-                    style={{ borderColor: '#1f4fb9', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', backgroundColor: '#035f87', color: '#ffffff' }}
+                    style={{ borderColor: '#1f4fb9', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', backgroundColor: '#035f87', color: '#ffffff' }}
                   >
                     <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
-                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.piece}</div>
                     <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.crates}</div>
+                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.weight}</div>
                     <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.perUnitPrice}</div>
                     <div className="p-1" style={{ backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.rs}</div>
                   </div>
@@ -913,7 +996,7 @@ function CreateInvoiceDirectPage() {
                       <div
                         key={i}
                         className="grid border-b text-center"
-                        style={{ borderColor: '#1f4fb9', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', backgroundColor: rowBgColor }}
+                        style={{ borderColor: '#1f4fb9', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', backgroundColor: rowBgColor }}
                       >
                         <div className="border-r p-1 text-left" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
                           <EditableSpanWrapper field={`row${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
@@ -928,7 +1011,7 @@ function CreateInvoiceDirectPage() {
                           <EditableSpanWrapper field={`row${i}_price`} style={{ width: '100%', minHeight: '22px' }} />
                         </div>
                         <div className="p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{formattedRowTotal}</span>
+                          <span style={{ fontSize: '12px', fontWeight: '500' }}>{convertToMarathi(formattedRowTotal)}</span>
                         </div>
                       </div>
                     );
@@ -942,7 +1025,7 @@ function CreateInvoiceDirectPage() {
                         position: 'absolute',
                         left: 0,
                         top: 0,
-                        width: '44.804%', // 4fr / (4 + 1.2 + 1.2 + 1.5 + 1)fr = 4/9.9 = 40.404% perfect is 44.804 
+                        width: '37.059%', // 3.3fr / (3.3 + 0.9 + 0.9 + 1.75 + 2.05)fr = 3.3/8.9 = 37.079%
                         height: '100%',
                         backgroundColor: '#f2eed3',
                         zIndex: 10,
@@ -957,7 +1040,7 @@ function CreateInvoiceDirectPage() {
                       {/* Grand Total Box - Reduced Width */}
                       <div data-pdf-shift="true" style={{ width: '90%', maxWidth: '250px', position: 'relative', zIndex: 11 }}>
                         {/* Net Balance Title - Red, Bold - Increased Size */}
-                        <div data-pdf-shift="true" style={{ fontSize: '16px', fontWeight: 'bold', color: '#dc2626', marginBottom: '6px', textAlign: 'center' }}>
+                        <div data-pdf-shift="true" style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626', marginBottom: '6px', textAlign: 'center' }}>
                           {DISPLAY_NAMES.netBalance}
                         </div>
                         
@@ -968,7 +1051,7 @@ function CreateInvoiceDirectPage() {
                             border: '1px solid #dc2626', 
                             borderRadius: '4px',
                             width: '100%',
-                            height: '45px',
+                            height: '50px',
                             display: 'flex',
                             flexDirection: 'row',
                             alignItems: 'center',
@@ -983,8 +1066,8 @@ function CreateInvoiceDirectPage() {
                           <div
                             data-pdf-shift="true"
                             style={{
-                              width: '35px',
-                              height: '35px',
+                              width: '38px',
+                              height: '38px',
                               borderRadius: '50%',
                               backgroundColor: '#dc2626',
                               display: 'flex',
@@ -998,7 +1081,7 @@ function CreateInvoiceDirectPage() {
                             <img 
                               src="/inovice_formatting/rupee_sym.png" 
                               alt="₹" 
-                              style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
                             />
                           </div>
                           
@@ -1006,12 +1089,12 @@ function CreateInvoiceDirectPage() {
                           <div
                             data-pdf-shift="true"
                             style={{
-                              fontSize: '16px',
+                              fontSize: '18px',
                               fontWeight: 'bold',
                               color: '#000000',
                               marginLeft: '-6px',
                               flex: 1,
-                              minHeight: '20px',
+                              minHeight: '22px',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
@@ -1026,34 +1109,34 @@ function CreateInvoiceDirectPage() {
                     {/* Total Sales Row */}
                     <div
                       className="grid border-t-2 border-b text-xs font-semibold"
-                      style={{ borderColor: '#1f4fb9', backgroundColor: '#c1e4ff', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', position: 'relative' }}
+                      style={{ borderColor: '#1f4fb9', backgroundColor: '#c1e4ff', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', position: 'relative' }}
                     >
                       <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#c1e4ff', gridColumn: '1' }}></div>
                       <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.totalSales}</div>
                       <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{formatAmount(calculateTotalSales().rs, calculateTotalSales().paise)}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'semibold' }}>{formatAmount(calculateTotalSales().rs, calculateTotalSales().paise)}</span>
                       </div>
                     </div>
                     {/* Expenses Row */}
                     <div
                       className="grid border-b text-xs font-semibold"
-                      style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', position: 'relative' }}
+                      style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', position: 'relative' }}
                     >
                       <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#f2eed3', gridColumn: '1' }}></div>
                       <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.expenses}</div>
                       <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{formatAmount(calculateTotalExpenses().rs, calculateTotalExpenses().paise)}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'semibold' }}>{formatAmount(calculateTotalExpenses().rs, calculateTotalExpenses().paise)}</span>
                       </div>
                     </div>
                     {/* Net Balance Row */}
                     <div
                       className="grid text-xs font-bold"
-                      style={{ borderColor: '#1f4fb9', backgroundColor: '#efdff0', gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr', position: 'relative' }}
+                      style={{ borderColor: '#1f4fb9', backgroundColor: '#efdff0', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', position: 'relative' }}
                     >
                       <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '1' }}></div>
                       <div className="border-r p-2 text-left font-bold" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.netBalance}</div>
                       <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '4 / 6' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
                           {formatAmount(calculateNetBalance().rs, calculateNetBalance().paise, calculateNetBalance().isNegative)}
                         </span>
                       </div>
@@ -1063,22 +1146,18 @@ function CreateInvoiceDirectPage() {
 
                 {/* Right Table - Expenses */}
                 <div className="col-span-3" style={{ backgroundColor: '#f2eed3' }}>
-                  {/* Header Row - Using 5 columns: Details (3), Rs (1), Paise (1) */}
-                  <div className="grid grid-cols-5 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#1f4fb9', backgroundColor: '#035f87', color: '#ffffff' }}>
-                    <div className="col-span-3 border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
-                    <div className="col-span-1 border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.rs}</div>
-                    <div className="col-span-1 p-1" style={{ backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.paise}</div>
+                  {/* Header Row - Using custom grid: Details (45%) and Amount (55%) */}
+                  <div className="grid border-b font-semibold text-xs whitespace-nowrap" style={{ borderColor: '#1f4fb9', backgroundColor: '#035f87', color: '#ffffff', gridTemplateColumns: '9fr 11fr' }}>
+                    <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', backgroundColor: '#035f87', color: '#ffffff', textAlign: 'center' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
+                    <div className="p-1" style={{ backgroundColor: '#035f87', color: '#ffffff', textAlign: 'center' }}>रक्कम</div>
                   </div>
                   {/* Expense Rows */}
                   {[DISPLAY_NAMES.commission, DISPLAY_NAMES.porterage, DISPLAY_NAMES.carRental, DISPLAY_NAMES.bundleExpenses, DISPLAY_NAMES.hundekariExpenses, DISPLAY_NAMES.spaceRent, DISPLAY_NAMES.warai, DISPLAY_NAMES.otherExpenses].map((expense, idx) => {
                     return (
-                      <div key={idx} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                        <div className="col-span-3 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>{expense}</div>
-                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
-                          <EditableSpanWrapper field={`expense${idx}_rs`} style={{ width: '100%', minHeight: '22px' }} />
-                        </div>
-                        <div className="col-span-1 p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}>
-                          <EditableSpanWrapper field={`expense${idx}_paise`} style={{ width: '100%', minHeight: '22px' }} />
+                      <div key={idx} className="grid border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '9fr 11fr' }}>
+                        <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>{expense}</div>
+                        <div className="p-1 text-right" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`expense${idx}_amount`} style={{ width: '100%', minHeight: '22px' }} />
                         </div>
                       </div>
                     );
@@ -1086,28 +1165,28 @@ function CreateInvoiceDirectPage() {
                   {/* Additional empty rows */}
                   {Array(5).fill(0).map((_, i) => {
                     return (
-                      <div key={`empty-${i}`} className="grid grid-cols-5 border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                        <div className="col-span-3 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>
+                      <div key={`empty-${i}`} className="grid border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '9fr 11fr' }}>
+                        <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>
                           <EditableSpanWrapper field={`empty${i}_details`} style={{ width: '100%', minHeight: '22px' }} />
                         </div>
-                        <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
-                          <EditableSpanWrapper field={`empty${i}_rs`} style={{ width: '100%', minHeight: '22px' }} />
-                        </div>
-                        <div className="col-span-1 p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}>
-                          <EditableSpanWrapper field={`empty${i}_paise`} style={{ width: '100%', minHeight: '22px' }} />
+                        <div className="p-1 text-right" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>
+                          <EditableSpanWrapper field={`empty${i}_amount`} style={{ width: '100%', minHeight: '22px' }} />
                         </div>
                       </div>
                     );
                   })}
                   
                   {/* Right Table - Total Expenses Only (Auto-calculated) */}
-                  <div className="grid grid-cols-5 border-t-2 text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                    <div className="col-span-3 border-r p-2 text-left" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>{DISPLAY_NAMES.totalExpenses}</div>
-                    <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{numberToMarathi(calculateTotalExpenses().rs || 0)}</span>
-                    </div>
-                    <div className="col-span-1 p-2 text-right" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'semibold' }}>{numberToMarathi(calculateTotalExpenses().paise || 0)}</span>
+                  <div className="grid border-t-2 text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '9fr 11fr' }}>
+                    <div className="border-r p-2 text-left" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>{DISPLAY_NAMES.totalExpenses}</div>
+                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 'semibold' }}>
+                        {(() => {
+                          const totalExp = calculateTotalExpenses();
+                          const totalAmount = totalExp.rs + (totalExp.paise / 100);
+                          return totalAmount > 0 ? englishToMarathi(totalAmount.toFixed(2)) : '';
+                        })()}
+                      </span>
                     </div>
                   </div>
                   {/* Horizontal line after Total Expenses */}
@@ -1131,19 +1210,19 @@ function CreateInvoiceDirectPage() {
             <div className="border-2 mb-1" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
               <div className="grid grid-cols-12" style={{ minHeight: '150px' }}>
                 {/* Left Side - Terms and Conditions */}
-                <div className="col-span-5 p-3" style={{ fontSize: '11px', lineHeight: '1.6', backgroundColor: '#f2eed3' }}>
-                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.salesSlipSent}</div>
-                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>
+                <div className="col-span-5 p-3" style={{ fontSize: '14px', lineHeight: '1.6', backgroundColor: '#f2eed3' }}>
+                  <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>{DISPLAY_NAMES.salesSlipSent}</div>
+                  <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>
                     {DISPLAY_NAMES.amountOfSlip}
-                    <EditableSpanWrapper field="amountOfSlipName" style={{ width: '150px', display: 'inline-block', marginLeft: '8px' }} />
+                    <EditableSpanWrapper field="amountOfSlipName" style={{ width: '130px', display: 'inline-block', marginLeft: '8px', fontSize: '14px' }} />
                   </div>
-                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>
+                  <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>
                     {DISPLAY_NAMES.toBeCollected}
-                    <EditableSpanWrapper field="toBeCollectedPlace" style={{ width: '100px', display: 'inline-block', marginLeft: '8px' }} />
+                    <EditableSpanWrapper field="toBeCollectedPlace" style={{ width: '90px', display: 'inline-block', marginLeft: '8px', fontSize: '14px' }} />
                     .
                   </div>
-                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.ifNotReceived}</div>
-                  <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.noComplaints}</div>
+                  <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>{DISPLAY_NAMES.ifNotReceived}</div>
+                  <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>{DISPLAY_NAMES.noComplaints}</div>
                 </div>
 
                 {/* Center - Empty (Grand Total moved to overlay) */}

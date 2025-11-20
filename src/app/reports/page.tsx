@@ -322,10 +322,7 @@ const ReportsPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-8 py-0 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 shadow-md border-b" style={{ height: 72 }}>
-        <div className="flex items-center h-full">
-          <img src="/inovice_formatting/logo_wbg.png" alt="Firm Logo" className="h-full w-auto mr-4 drop-shadow" style={{ maxHeight: 72 }} />
-        </div>
+      <div className="flex items-center justify-end px-8 py-0 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 shadow-md border-b" style={{ height: 72 }}>
         <div className="flex items-center gap-4">
           <Link href="/">
             <button className="bg-white hover:bg-orange-100 text-orange-600 font-bold px-7 py-2 rounded-lg transition shadow-lg border border-orange-200 text-lg">

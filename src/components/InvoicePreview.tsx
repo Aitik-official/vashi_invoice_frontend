@@ -1,6 +1,7 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { generateStandardizedPDF } from "../utils/pdfGenerator";
 import { parseMarathiNumber, englishToMarathi } from "../utils/marathiDigits";
+import { convertToMarathi, convertNumbersToMarathi, convertToMarathiAsync } from "../utils/marathiTransliteration";
 
 // Expected data structure for each cinema row (from Excel):
 // {
@@ -168,6 +169,7 @@ export const DISPLAY_NAMES = {
   detailsOfGoods: 'मालाचा तपशील',
   item: 'Item',
   piece: 'नग',
+  weight: 'वजन',
   crates: 'डाग',
   perUnitPrice: 'दर',
   rate: 'Rate',
@@ -175,6 +177,7 @@ export const DISPLAY_NAMES = {
   // Table headers - Right table
   detailsOfExpenses: 'खर्चाचा तपशील',
   totalExpenses: 'एकुण खर्च',
+  amount: 'रक्कम',
   
   // Expense types
   commission: 'कमिशन',
@@ -220,7 +223,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
     if (data?.["In_no"] && typeof data["In_no"] === 'string' && data["In_no"].trim()) {
       const excelInvoiceNo = data["In_no"].trim();
       console.log('InvoicePreview: Found Excel "In_no":', excelInvoiceNo);
-      return excelInvoiceNo;
+      return convertToMarathi(excelInvoiceNo);
     }
     
     // If "In_no" is not found, return placeholder
@@ -517,53 +520,53 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
         </div>
 
         {/* Main Content Box - New Layout Matching Image */}
-        <div style={{ width: '100%', padding: '1rem', paddingTop: '0.5rem', fontSize: '12px' }}>
+        <div style={{ width: '100%', padding: '1rem', paddingTop: '0.5rem', fontSize: '14px' }}>
           {/* Top Header Section */}
           <div style={{ border: '2px solid #1f4fb9', padding: '8px', marginBottom: '0.25rem', backgroundColor: '#f2eed3' }}>
             {/* Top Right - Date */}
             <div style={{ textAlign: 'right', marginBottom: '8px' }}>
-              <span style={{ paddingRight: '40px', display: 'inline-block' }}><span style={{ color: '#1670b5' }}>{DISPLAY_NAMES.date}:</span> {invoiceDate || ''}</span>
+              <span style={{ paddingRight: '40px', display: 'inline-block', fontSize: '14px' }}><span style={{ color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.date}:</span> <span style={{ fontSize: '14px' }}>{convertToMarathi(invoiceDate || '')}</span></span>
             </div>
             
               {/* Recipient/Sender Details Section */}
               <div style={{ marginBottom: '8px', lineHeight: '1.6' }}>
                 {/* First Line - Mr. Ra. Ra., Place, To + values from data */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES.mrRaRa}</span>
-                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '120px', minHeight: '16px', display: 'inline-block' }}>
-                    {data?.mrRaRa || ''}
+                  <span style={{ color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.mrRaRa}</span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '100px', minHeight: '18px', display: 'inline-block', fontSize: '14px' }}>
+                    {convertToMarathi(data?.mrRaRa || '')}
                   </span>
-                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES.place}</span>
-                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '100px', minHeight: '16px', display: 'inline-block' }}>
-                    {data?.place || ''}
+                  <span style={{ color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.place}</span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '80px', minHeight: '18px', display: 'inline-block', fontSize: '14px' }}>
+                    {convertToMarathi(data?.place || '')}
                   </span>
-                  <span style={{ color: '#1670b5' }}>{DISPLAY_NAMES.to}</span>
-                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '100px', minHeight: '16px', display: 'inline-block' }}>
-                    {data?.to || ''}
+                  <span style={{ color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.to}</span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '80px', minHeight: '18px', display: 'inline-block', fontSize: '14px' }}>
+                    {convertToMarathi(data?.to || '')}
                   </span>
                 </div>
                 
                 {/* Second Line - Mo. No., Cheque/Draft No., Received with values */}
                 <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap', marginBottom: '8px', lineHeight: '1.6', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.loveGreetings}</span>
-                  <span style={{ borderBottom: '1px solid #1f4fb9', flex: 1, minHeight: '16px', marginLeft: '8px', marginRight: '8px', display: 'inline-block' }}>
-                    {data?.raRaNo || ''}
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.loveGreetings}</span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', flex: 1, minHeight: '18px', marginLeft: '8px', marginRight: '8px', display: 'inline-block', fontSize: '14px' }}>
+                    {convertToMarathi(data?.raRaNo || '')}
                   </span>
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
-                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '100px', minHeight: '16px', marginLeft: '8px', marginRight: '8px', display: 'inline-block' }}>
-                    {data?.chequeDraftNo || ''}
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.chequeDraftNo}</span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', width: '80px', minHeight: '18px', marginLeft: '8px', marginRight: '8px', display: 'inline-block', fontSize: '14px' }}>
+                    {convertToMarathi(data?.chequeDraftNo || '')}
                   </span>
-                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5' }}>{DISPLAY_NAMES.received}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.received}</span>
                 </div>
                 
                 {/* Remaining lines */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', lineHeight: '1.6' }}>
                   <div style={{ width: '60%' }}>
-                    <div style={{ marginBottom: '4px', color: '#1670b5' }}>{DISPLAY_NAMES.salesDetails}</div>
+                    <div style={{ marginBottom: '4px', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.salesDetails}</div>
                     <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
-                      <span style={{ marginRight: '8px', color: '#1670b5' }}>{DISPLAY_NAMES.deposit}:</span>
-                      <span style={{ borderBottom: '1px solid #1f4fb9', flex: 1, minHeight: '16px' }}>
-                        {data?.deposit || ''}
+                      <span style={{ marginRight: '8px', color: '#1670b5', fontSize: '14px', fontWeight: '500' }}>{DISPLAY_NAMES.deposit}:</span>
+                      <span style={{ borderBottom: '1px solid #1f4fb9', flex: 1, minHeight: '18px', fontSize: '14px' }}>
+                        {convertToMarathi(data?.deposit || '')}
                       </span>
                     </div>
                   </div>
@@ -581,14 +584,14 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                   className="grid border-b font-semibold text-center text-xs whitespace-nowrap"
                   style={{
                     borderColor: '#1f4fb9',
-                    gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr',
+                    gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr',
                     backgroundColor: '#035f87',
                     color: '#ffffff'
                   }}
                 >
                   <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.detailsOfGoods}</div>
-                  <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.piece}</div>
                   <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.crates}</div>
+                  <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.weight}</div>
                   <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.perUnitPrice}</div>
                   <div className="p-1" style={{ whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.rs}</div>
                 </div>
@@ -599,14 +602,14 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                     className="grid border-b text-center"
                     style={{
                       borderColor: '#1f4fb9',
-                      gridTemplateColumns: '4fr 0.8fr 0.8fr 1.5fr 1.8fr',
+                      gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr',
                       backgroundColor: i % 2 === 0 ? '#ffffff' : '#fafafa'
                     }}
                   >
-                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', textAlign: 'left', backgroundColor: '#f2eed3' }}>{row?.details || row?.detailsOfGoods || ''}</div>
-                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#d9d6e0' }}>{row?.piece || ''}</div>
-                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>{row?.crates || ''}</div>
-                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#d9d6e0' }}>{row?.price || ''}</div>
+                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', textAlign: 'left', backgroundColor: '#f2eed3' }}>{convertToMarathi(row?.details || row?.detailsOfGoods || '')}</div>
+                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#d9d6e0' }}>{convertToMarathi(row?.crates || '')}</div>
+                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>{convertToMarathi(row?.piece || '')}</div>
+                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#d9d6e0' }}>{convertToMarathi(row?.price || '')}</div>
                     <div className="p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>{formatRowAmount(row)}</div>
                   </div>
                 ))}
@@ -619,7 +622,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                       position: 'absolute',
                       left: 0,
                       top: 0,
-                      width: '40.404%', // 4fr / (4 + 1.2 + 1.2 + 1.5 + 1)fr = 4/9.9 = 40.404%
+                      width: '37.059%', // 3.3fr / (3.3 + 0.9 + 0.9 + 1.75 + 2.05)fr = 3.3/8.9 = 37.059%
                       height: '100%',
                       backgroundColor: '#f2eed3',
                       zIndex: 10,
@@ -634,7 +637,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                     {/* Grand Total Box - Reduced Width */}
                     <div data-pdf-shift="true" style={{ width: '90%', maxWidth: '250px', position: 'relative', zIndex: 11 }}>
                       {/* Net Balance Title - Red, Bold - Increased Size */}
-                      <div data-pdf-shift="true" style={{ fontSize: '16px', fontWeight: 'bold', color: '#dc2626', marginBottom: '6px', textAlign: 'center' }}>
+                      <div data-pdf-shift="true" style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626', marginBottom: '6px', textAlign: 'center' }}>
                         {DISPLAY_NAMES.netBalance}
                       </div>
                       
@@ -645,7 +648,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                           border: '1px solid #dc2626', 
                           borderRadius: '4px',
                           width: '100%',
-                          height: '45px',
+                          height: '50px',
                           display: 'flex',
                           flexDirection: 'row',
                           alignItems: 'center',
@@ -660,8 +663,8 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                         <div
                           data-pdf-shift="true"
                           style={{
-                            width: '35px',
-                            height: '35px',
+                            width: '38px',
+                            height: '38px',
                             borderRadius: '50%',
                             backgroundColor: '#dc2626',
                             display: 'flex',
@@ -675,7 +678,7 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                           <img 
                             src="/inovice_formatting/rupee_sym.png" 
                             alt="₹" 
-                            style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                            style={{ width: '20px', height: '20px', objectFit: 'contain' }}
                           />
                         </div>
                         
@@ -683,12 +686,12 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                         <div
                           data-pdf-shift="true"
                           style={{
-                            fontSize: '16px',
+                            fontSize: '18px',
                             fontWeight: 'bold',
                             color: '#000000',
                             marginLeft: '-6px',
                             flex: 1,
-                            minHeight: '20px',
+                            minHeight: '22px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -703,88 +706,81 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
                   {/* Total Sales Row */}
                   <div
                     className="grid border-t-2 border-b text-xs font-semibold"
-                    style={{ borderColor: '#1f4fb9', backgroundColor: '#c1e4ff', gridTemplateColumns: '4fr 1.2fr 1.2fr 1.5fr 1fr', position: 'relative' }}
+                    style={{ borderColor: '#1f4fb9', backgroundColor: '#c1e4ff', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', position: 'relative' }}
                   >
                     <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#c1e4ff', gridColumn: '1' }}></div>
                     <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.totalSales}</div>
-                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>{formatCurrencyValue(goodsTotalAmount)}</div>
+                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6', fontSize: '14px' }}>{formatCurrencyValue(goodsTotalAmount)}</div>
                   </div>
                   {/* Expenses Row */}
                   <div
                     className="grid border-b text-xs font-semibold"
-                    style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '4fr 1.2fr 1.2fr 1.5fr 1fr', position: 'relative' }}
+                    style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', position: 'relative' }}
                   >
                     <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottomColor: '#f2eed3', gridColumn: '1' }}></div>
                     <div className="border-r p-2 text-left font-semibold" style={{ borderColor: '#1f4fb9', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.expenses}</div>
-                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6' }}>{formatCurrencyValue(totalDeductionAmount)}</div>
+                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6', fontSize: '14px' }}>{formatCurrencyValue(totalDeductionAmount)}</div>
                   </div>
                   {/* Net Balance Row */}
                   <div
                     className="grid text-xs font-bold"
-                    style={{ borderColor: '#1f4fb9', backgroundColor: '#d9d6e0', gridTemplateColumns: '4fr 1.2fr 1.2fr 1.5fr 1fr', position: 'relative' }}
+                    style={{ borderColor: '#1f4fb9', backgroundColor: '#d9d6e0', gridTemplateColumns: '3.3fr 0.9fr 0.9fr 1.75fr 2.05fr', position: 'relative' }}
                   >
                     <div className="border-r p-2" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '1' }}></div>
                     <div className="border-r p-2 text-left font-bold" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '2 / 4' }}>{DISPLAY_NAMES.netBalance}</div>
-                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '4 / 6' }}>{formatCurrencyValue(goodsNetAmount)}</div>
+                    <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', borderBottom: 'none', gridColumn: '4 / 6', fontSize: '14px' }}>{formatCurrencyValue(goodsNetAmount)}</div>
                   </div>
                 </div>
               </div>
 
               {/* Right Table - Expenses (reduced width) */}
               <div className="col-span-4" style={{ backgroundColor: '#f2eed3' }}>
-                {/* Header Row - 3 columns without Per unit price */}
-                <div className="grid grid-cols-3 border-b font-semibold text-center text-xs whitespace-nowrap" style={{ borderColor: '#1f4fb9', backgroundColor: '#035f87', color: '#ffffff' }}>
-                  <div className="col-span-1 border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
-                  <div className="col-span-1 border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.rs}</div>
-                  <div className="col-span-1 p-1" style={{ whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff' }}>{DISPLAY_NAMES.paise}</div>
+                {/* Header Row - 2 columns: Details (45%) and Amount (55%) */}
+                <div className="grid border-b font-semibold text-xs whitespace-nowrap" style={{ borderColor: '#1f4fb9', backgroundColor: '#035f87', color: '#ffffff', gridTemplateColumns: '9fr 11fr' }}>
+                  <div className="border-r p-1" style={{ borderRightColor: '#d3d3d3', whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff', textAlign: 'center' }}>{DISPLAY_NAMES.detailsOfExpenses}</div>
+                  <div className="p-1" style={{ whiteSpace: 'nowrap', backgroundColor: '#035f87', color: '#ffffff', textAlign: 'center' }}>{DISPLAY_NAMES.amount}</div>
                 </div>
                 {/* Expense Rows - Matching height with left table (10 rows total) */}
                 {[DISPLAY_NAMES.commission, DISPLAY_NAMES.porterage, DISPLAY_NAMES.carRental, DISPLAY_NAMES.bundleExpenses, DISPLAY_NAMES.hundekariExpenses, DISPLAY_NAMES.spaceRent, DISPLAY_NAMES.warai, DISPLAY_NAMES.otherExpenses].map((expense, idx) => {
                   const expRow = expensesFromData[idx] || {};
-                  const rsText = expRow.rs !== undefined && expRow.rs !== null && expRow.rs !== ''
-                    ? englishToMarathi(String(expRow.rs))
-                    : '';
-                  const paiseText = expRow.paise !== undefined && expRow.paise !== null && expRow.paise !== ''
-                    ? englishToMarathi(String(expRow.paise))
-                    : '';
+                  // Combine Rs and Paise into decimal amount
+                  const rs = parseMarathiNumber(String(expRow.rs || '0'));
+                  const paise = parseMarathiNumber(String(expRow.paise || '0'));
+                  const combinedAmount = rs + (paise / 100);
+                  const amountText = combinedAmount > 0 ? formatCurrencyValue(combinedAmount) : '';
                   return (
-                  <div key={idx} className="grid grid-cols-3 border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                    <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>{expense}</div>
-                  <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>{rsText}</div>
-                  <div className="col-span-1 p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}>{paiseText}</div>
+                  <div key={idx} className="grid border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '9fr 11fr' }}>
+                    <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>{expense}</div>
+                  <div className="p-1 text-right" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}>{amountText}</div>
                   </div>
                   );
                 })}
                 {/* Additional empty rows to match left table (10 rows total) */}
                 {Array(2).fill(0).map((_, i) => {
                   return (
-                    <div key={`empty-${i}`} className="grid grid-cols-3 border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                      <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}></div>
-                      <div className="col-span-1 border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#f2eed3' }}></div>
-                      <div className="col-span-1 p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}></div>
+                    <div key={`empty-${i}`} className="grid border-b text-xs" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '9fr 11fr' }}>
+                      <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '22px', backgroundColor: '#c1e4ff', textAlign: 'center' }}></div>
+                      <div className="p-1" style={{ minHeight: '22px', backgroundColor: '#f2eed3' }}></div>
                     </div>
                   );
                 })}
                 
                 {/* Right Table - Professional Totals Section */}
-                <div className="grid grid-cols-3 border-t-2 text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f9fafb' }}>
-                  <div className="col-span-1 border-r p-2 text-left" style={{ borderColor: '#1f4fb9' }}>{DISPLAY_NAMES.totalSales}</div>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#1f4fb9' }}></div>
-                  <div className="col-span-1 p-2 text-right" style={{ borderColor: '#1f4fb9' }}>
+                <div className="grid border-t-2 text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f9fafb', gridTemplateColumns: '9fr 11fr' }}>
+                  <div className="border-r p-2 text-left" style={{ borderColor: '#1f4fb9' }}>{DISPLAY_NAMES.totalSales}</div>
+                  <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', fontSize: '14px' }}>
                     {formatCurrencyValue(goodsTotalAmount)}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 border-b text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
-                  <div className="col-span-1 border-r p-2 text-left" style={{ borderColor: '#1f4fb9' }}>{DISPLAY_NAMES.expenses}</div>
-                  <div className="col-span-1 border-r p-2 text-right" style={{ borderColor: '#1f4fb9' }}></div>
-                  <div className="col-span-1 p-2 text-right" style={{ borderColor: '#1f4fb9' }}>
+                <div className="grid border-b text-xs font-semibold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '9fr 11fr' }}>
+                  <div className="border-r p-2 text-left" style={{ borderColor: '#1f4fb9' }}>{DISPLAY_NAMES.expenses}</div>
+                  <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', fontSize: '14px' }}>
                     {formatCurrencyValue(totalDeductionAmount)}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 border-b text-xs font-bold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f0f9ff' }}>
-                  <div className="col-span-1 border-r p-2 text-left" style={{ borderColor: '#1f4fb9' }}>{DISPLAY_NAMES.netBalance}</div>
-                  <div className="col-span-1 border-r p-2 text-center" style={{ borderColor: '#1f4fb9' }}></div>
-                  <div className="col-span-1 p-2 text-right font-bold" style={{ borderColor: '#1f4fb9' }}>
+                <div className="grid border-b text-xs font-bold" style={{ borderColor: '#1f4fb9', backgroundColor: '#f0f9ff', gridTemplateColumns: '9fr 11fr' }}>
+                  <div className="border-r p-2 text-left" style={{ borderColor: '#1f4fb9' }}>{DISPLAY_NAMES.netBalance}</div>
+                  <div className="p-2 text-right font-bold" style={{ borderColor: '#1f4fb9', fontSize: '14px' }}>
                     {formatCurrencyValue(goodsNetAmount)}
                   </div>
                 </div>
@@ -810,19 +806,19 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
           <div className="border-2 mb-1" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3' }}>
             <div className="grid grid-cols-12" style={{ minHeight: '150px' }}>
               {/* Left Side - Terms and Conditions */}
-              <div className="col-span-5 p-3" style={{ fontSize: '11px', lineHeight: '1.6', backgroundColor: '#f2eed3' }}>
-                <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.salesSlipSent}</div>
-                <div style={{ marginBottom: '4px', color: '#4821c9' }}>
+              <div className="col-span-5 p-3" style={{ fontSize: '14px', lineHeight: '1.6', backgroundColor: '#f2eed3' }}>
+                <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>{DISPLAY_NAMES.salesSlipSent}</div>
+                <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>
                   {DISPLAY_NAMES.amountOfSlip}
-                  <span style={{ borderBottom: '1px solid #1f4fb9', padding: '0 60px', display: 'inline-block', minWidth: '150px' }}></span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', padding: '0 50px', display: 'inline-block', minWidth: '130px', fontSize: '14px' }}></span>
                 </div>
-                <div style={{ marginBottom: '4px', color: '#4821c9' }}>
+                <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>
                   {DISPLAY_NAMES.toBeCollected}
-                  <span style={{ borderBottom: '1px solid #1f4fb9', padding: '0 40px', display: 'inline-block', minWidth: '100px', marginLeft: '8px' }}></span>
+                  <span style={{ borderBottom: '1px solid #1f4fb9', padding: '0 35px', display: 'inline-block', minWidth: '90px', marginLeft: '8px', fontSize: '14px' }}></span>
                   .
                 </div>
-                <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.ifNotReceived}</div>
-                <div style={{ marginBottom: '4px', color: '#4821c9' }}>{DISPLAY_NAMES.noComplaints}</div>
+                <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>{DISPLAY_NAMES.ifNotReceived}</div>
+                <div style={{ marginBottom: '4px', color: '#4821c9', fontSize: '14px' }}>{DISPLAY_NAMES.noComplaints}</div>
               </div>
 
               {/* Center - Empty (Grand Total moved to overlay) */}
