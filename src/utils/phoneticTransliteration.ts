@@ -13,12 +13,16 @@ const PHONETIC_MAP: { [key: string]: string } = {
   'a': 'अ', 'aa': 'आ', 'A': 'आ', 'AA': 'आ',
   'i': 'इ', 'ee': 'ई', 'ii': 'ई', 'I': 'ई', 'EE': 'ई', 'II': 'ई',
   'u': 'उ', 'oo': 'ऊ', 'uu': 'ऊ', 'U': 'ऊ', 'OO': 'ऊ', 'UU': 'ऊ',
-  'e': 'ए', 'E': 'ए', 'ai': 'ऐ', 'AI': 'ऐ', 'ay': 'ऐ', 'AY': 'ऐ',
-  'o': 'ओ', 'O': 'ओ', 'au': 'औ', 'AU': 'औ', 'ow': 'औ', 'OW': 'औ',
+  'e': 'ए', 'E': 'ए', 'ay': 'ऐ', 'AY': 'ऐ',
+  'o': 'ओ', 'O': 'ओ', 'ow': 'औ', 'OW': 'औ',
+  
+  // Vowel combinations (moved to avoid duplicates)
+  'ai': 'ऐ', 'AI': 'ऐ', // Vowel combination
+  'au': 'औ', 'AU': 'औ', // Vowel combination
   
   // Consonants with common patterns
-  'k': 'क', 'kh': 'ख', 'g': 'ग', 'gh': 'घ', 'ng': 'ङ',
-  'K': 'क', 'KH': 'ख', 'G': 'ग', 'GH': 'घ', 'NG': 'ङ',
+  'k': 'क', 'kh': 'ख', 'g': 'ग', 'gh': 'घ',
+  'K': 'क', 'KH': 'ख', 'G': 'ग', 'GH': 'घ',
   'c': 'च', 'ch': 'छ', 'j': 'ज', 'jh': 'झ', 'ny': 'ञ',
   'C': 'च', 'CH': 'छ', 'J': 'ज', 'JH': 'झ', 'NY': 'ञ',
   't': 'त', 'th': 'थ', 'd': 'द', 'dh': 'ध', 'n': 'न',
@@ -31,12 +35,10 @@ const PHONETIC_MAP: { [key: string]: string } = {
   'SH': 'श', 'SHH': 'ष', 'S': 'स', 'H': 'ह',
   'x': 'क्ष', 'X': 'क्ष',
   
-  // Special patterns for common English sounds
+  // Special patterns for common English sounds (removed duplicates from above)
   'mb': 'म्ब', 'MB': 'म्ब',
   'nd': 'न्द', 'ND': 'न्द',
-  'ng': 'ङ्ग', 'NG': 'ङ्ग',
-  'ai': 'ऐ', 'AI': 'ऐ',
-  'au': 'औ', 'AU': 'औ',
+  'ng': 'ङ्ग', 'NG': 'ङ्ग', // Special pattern (different from 'ng' consonant)
   'ou': 'औ', 'OU': 'औ',
 };
 
