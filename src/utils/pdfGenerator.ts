@@ -135,59 +135,8 @@ export const generateStandardizedPDF = async (
     // Wait for render and images to load
     await new Promise(r => setTimeout(r, 800));
 
-    // Apply cell alignment fixes
-    const tableCells = hiddenDiv.querySelectorAll('.pdf-cell-fix');
-    tableCells.forEach(cell => {
-      const htmlCell = cell as HTMLElement;
-      htmlCell.style.position = 'relative';
-      htmlCell.style.top = '-2.5px';
-    });
-
-    // Apply upward shift BEFORE html2canvas - use multiple methods for reliability
-    // Method 1: Reduce padding-top of main content box
-    const mainContentBox = hiddenDiv.querySelector('div[style*="paddingTop"][style*="0.5rem"], div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"]');
-    if (mainContentBox instanceof HTMLElement) {
-      // Reduce padding-top to shift content up
-      const currentPaddingTop = mainContentBox.style.paddingTop || '';
-      if (currentPaddingTop.includes('0.5rem')) {
-        mainContentBox.style.paddingTop = '0';
-      } else if (currentPaddingTop.includes('1rem')) {
-        mainContentBox.style.paddingTop = '0.25rem';
-      }
-      
-      // Also apply negative margin-top
-      mainContentBox.style.marginTop = '-60px';
-      mainContentBox.style.position = 'relative';
-      
-      // Method 2: Apply to all child elements using top positioning
-      const allChildren = mainContentBox.querySelectorAll('*');
-      allChildren.forEach((child) => {
-        if (child instanceof HTMLElement) {
-          child.style.position = 'relative';
-          child.style.top = '-60px';
-        }
-      });
-      
-      // Method 3: Specifically target headers
-      const headers = hiddenDiv.querySelectorAll('div[style*="#035f87"]');
-      headers.forEach((header) => {
-        if (header instanceof HTMLElement) {
-          header.style.position = 'relative';
-          header.style.top = '-60px';
-          header.style.marginTop = '-60px';
-        }
-      });
-      
-      // Method 4: Apply to grand total box elements
-      const grandTotalElements = hiddenDiv.querySelectorAll('[data-pdf-shift="true"]');
-      grandTotalElements.forEach((element) => {
-        if (element instanceof HTMLElement) {
-          element.style.position = 'relative';
-          element.style.top = '-60px';
-          element.style.marginTop = '-60px';
-        }
-      });
-    }
+    // Do not modify layout - render exactly as shown in preview
+    // Only apply minimal text shifting if absolutely necessary for spacing
 
     // Wait for all images to load
     await waitForImagesToLoad(hiddenDiv);
@@ -211,80 +160,137 @@ export const generateStandardizedPDF = async (
           clonedStamp.style.flexGrow = '0';
         }
         
-        // Shift all text content upward for PDF - use CSS injection and data attributes
-        // Inject a style tag with transform rules
-        const styleTag = clonedDoc.createElement('style');
-        styleTag.textContent = `
-          [data-pdf-shift="true"] {
-            transform: translateY(-60px) !important;
-            position: relative !important;
-          }
-          div[style*="paddingTop"][style*="0.5rem"],
-          div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"] {
-            transform: translateY(-60px) !important;
-            position: relative !important;
-          }
-          div[style*="paddingTop"][style*="0.5rem"] *,
-          div[style*="padding"][style*="1rem"][style*="fontSize"][style*="12px"] * {
-            transform: translateY(-60px) !important;
-            position: relative !important;
-          }
-          div[style*="#035f87"],
-          div[style*="backgroundColor"][style*="#035f87"] {
-            transform: translateY(-60px) !important;
-            position: relative !important;
-          }
-          div[style*="#035f87"] *,
-          div[style*="backgroundColor"][style*="#035f87"] * {
-            transform: translateY(-60px) !important;
-          }
-        `;
-        clonedDoc.head.appendChild(styleTag);
+        // Only shift text content upward, preserve all layout exactly
+        // The real issue: When text is shifted with translateY, it can cause wrapping in:
+        // 1. Top box blanks (elements with borderBottom)
+        // 2. Grid cells (especially header cells like "Details of Expenses")
+        // Solution: Ensure all containers maintain their width/height constraints
+        // and prevent text wrapping in grid cells and flex containers
         
-        // Apply directly to elements with data-pdf-shift attribute (grand total box)
-        const pdfShiftElements = clonedDoc.body.querySelectorAll('[data-pdf-shift="true"]');
-        pdfShiftElements.forEach((element: Element) => {
-          if (element instanceof HTMLElement) {
-            element.style.setProperty('transform', 'translateY(-60px)', 'important');
-            element.style.setProperty('position', 'relative', 'important');
+        // First, fix all grid containers to maintain their column widths
+        const gridContainers = clonedDoc.body.querySelectorAll('.grid, [style*="gridTemplateColumns"], [style*="display: grid"]');
+        gridContainers.forEach((grid) => {
+          if (grid instanceof HTMLElement) {
+            const gridStyle = window.getComputedStyle(grid);
+            const gridTemplateColumns = gridStyle.gridTemplateColumns;
+            if (gridTemplateColumns && gridTemplateColumns !== 'none') {
+              // Force grid to maintain its column template
+              grid.style.setProperty('grid-template-columns', gridTemplateColumns, 'important');
+              grid.style.setProperty('width', gridStyle.width || '100%', 'important');
+              // Prevent grid from shrinking
+              grid.style.setProperty('min-width', gridStyle.width || '100%', 'important');
+            }
           }
         });
         
-        // Also apply directly to main content box and headers
-        const allDivs = clonedDoc.body.querySelectorAll('div');
-        
-        allDivs.forEach((box) => {
-          if (box instanceof HTMLElement) {
-            const style = box.getAttribute('style') || '';
-            const hasPaddingTop = style.includes('paddingTop') && style.includes('0.5rem');
-            const hasPadding = style.includes('padding') && style.includes('1rem');
-            const hasFontSize = style.includes('fontSize') && style.includes('12px');
-            const hasWidth = style.includes('width') && style.includes('100%');
-            
-            if ((hasPaddingTop || hasPadding) && hasFontSize && hasWidth) {
-              // Shift the entire container
-              box.style.setProperty('transform', 'translateY(-60px)', 'important');
-              box.style.setProperty('position', 'relative', 'important');
-              
-              // Apply to all child elements
-              const allChildren = box.querySelectorAll('*');
-              allChildren.forEach((element: Element) => {
-                if (element instanceof HTMLElement) {
-                  element.style.setProperty('transform', 'translateY(-60px)', 'important');
-                }
-              });
+        // Fix all grid cells to maintain their width and prevent wrapping
+        const gridCells = clonedDoc.body.querySelectorAll('.grid > div, [style*="gridTemplateColumns"] > div');
+        gridCells.forEach((cell) => {
+          if (cell instanceof HTMLElement) {
+            const cellStyle = window.getComputedStyle(cell);
+            // Ensure grid cells maintain their width
+            if (cellStyle.width && cellStyle.width !== 'auto') {
+              cell.style.setProperty('width', cellStyle.width, 'important');
+              cell.style.setProperty('min-width', cellStyle.width, 'important');
+              cell.style.setProperty('max-width', cellStyle.width, 'important');
             }
+            // If cell has whiteSpace: nowrap, preserve it
+            const cellAttrStyle = cell.getAttribute('style') || '';
+            if (cellAttrStyle.includes('whiteSpace: nowrap') || 
+                cellAttrStyle.includes('white-space: nowrap') ||
+                cellStyle.whiteSpace === 'nowrap') {
+              cell.style.setProperty('white-space', 'nowrap', 'important');
+              cell.style.setProperty('overflow', 'hidden', 'important');
+            }
+            // Preserve height to prevent row expansion
+            if (cellStyle.height && cellStyle.height !== 'auto') {
+              cell.style.setProperty('height', cellStyle.height, 'important');
+              cell.style.setProperty('min-height', cellStyle.minHeight || cellStyle.height, 'important');
+            }
+          }
+        });
+        
+        // Fix flex containers to maintain width
+        const flexContainers = clonedDoc.body.querySelectorAll('[style*="display: flex"], [style*="display:flex"]');
+        flexContainers.forEach((flex) => {
+          if (flex instanceof HTMLElement) {
+            const flexStyle = window.getComputedStyle(flex);
+            if (flexStyle.width && flexStyle.width !== 'auto') {
+              flex.style.setProperty('width', flexStyle.width, 'important');
+              flex.style.setProperty('min-width', flexStyle.width, 'important');
+              flex.style.setProperty('flex-shrink', '0', 'important');
+            }
+            // Preserve whiteSpace: nowrap if present
+            const flexAttrStyle = flex.getAttribute('style') || '';
+            if (flexAttrStyle.includes('whiteSpace: nowrap') || 
+                flexAttrStyle.includes('white-space: nowrap') ||
+                flexStyle.whiteSpace === 'nowrap') {
+              flex.style.setProperty('white-space', 'nowrap', 'important');
+            }
+          }
+        });
+        
+        // Now shift text elements, but ensure they don't cause wrapping
+        const allTextElements = clonedDoc.body.querySelectorAll('span, p, div');
+        allTextElements.forEach((element) => {
+          if (element instanceof HTMLElement) {
+            // Skip if it's a container, grid, table, or structural element
+            const isContainer = element.classList.contains('grid') || 
+                               element.style.display === 'grid' ||
+                               element.style.display === 'flex' ||
+                               element.getAttribute('style')?.includes('gridTemplateColumns') ||
+                               element.tagName === 'TABLE' ||
+                               element.closest('table') ||
+                               element.closest('.grid') ||
+                               element.querySelector('.grid');
             
-            // Target headers specifically
-            if (style.includes('#035f87')) {
-              box.style.setProperty('transform', 'translateY(-60px)', 'important');
-              box.style.setProperty('position', 'relative', 'important');
-              const headerChildren = box.querySelectorAll('*');
-              headerChildren.forEach((child: Element) => {
-                if (child instanceof HTMLElement) {
-                  child.style.setProperty('transform', 'translateY(-60px)', 'important');
+            const style = element.getAttribute('style') || '';
+            const computedStyle = window.getComputedStyle(element);
+            
+            // Check if element has borderBottom (input field/blanks in top box)
+            const hasBorderBottom = style.includes('borderBottom') || 
+                                   style.includes('border-bottom');
+            
+            // Only shift simple text elements (leaf nodes with text, not containers)
+            const hasOnlyText = !element.querySelector('*') || 
+                              (element.children.length === 0 && element.textContent && element.textContent.trim());
+            
+            // Shift text but ensure it doesn't cause layout issues
+            if (!isContainer && hasOnlyText && element.textContent && element.textContent.trim()) {
+              const currentTransform = element.style.transform || '';
+              if (!currentTransform.includes('translateY')) {
+                // Use transform with position:relative
+                element.style.setProperty('transform', 'translateY(-60px)', 'important');
+                element.style.setProperty('position', 'relative', 'important');
+                
+                // For elements with borderBottom (blanks in top box), ensure they maintain width
+                if (hasBorderBottom) {
+                  const currentWidth = computedStyle.width || element.style.width || 'auto';
+                  if (currentWidth && currentWidth !== 'auto') {
+                    element.style.setProperty('width', currentWidth, 'important');
+                    element.style.setProperty('min-width', currentWidth, 'important');
+                    element.style.setProperty('flex-shrink', '0', 'important');
+                  }
+                  // Ensure no wrapping
+                  element.style.setProperty('white-space', 'nowrap', 'important');
+                  element.style.setProperty('overflow', 'hidden', 'important');
+                } else {
+                  // For other text elements, preserve width if set
+                  const currentWidth = computedStyle.width;
+                  if (currentWidth && currentWidth !== 'auto') {
+                    element.style.setProperty('width', currentWidth, 'important');
+                    element.style.setProperty('min-width', currentWidth, 'important');
+                    element.style.setProperty('flex-shrink', '0', 'important');
+                  }
+                  // Preserve white-space if it's nowrap
+                  if (style.includes('whiteSpace: nowrap') || 
+                      style.includes('white-space: nowrap') ||
+                      computedStyle.whiteSpace === 'nowrap') {
+                    element.style.setProperty('white-space', 'nowrap', 'important');
+                    element.style.setProperty('overflow', 'hidden', 'important');
+                  }
                 }
-              });
+              }
             }
           }
         });
@@ -365,3 +371,4 @@ function waitForImagesToLoad(container: HTMLElement): Promise<void> {
 
 // Export for backward compatibility
 export default generateStandardizedPDF;
+

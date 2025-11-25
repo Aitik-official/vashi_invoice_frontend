@@ -13,11 +13,11 @@ const ReportsPage = () => {
   const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
-    fetch('/api/proxy')
+          fetch('/api/proxy')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setInvoices(data);
+        setInvoices(data);
         } else {
           console.error('ReportsPage: Invalid data format received from server', data);
           setInvoices([]);
@@ -396,12 +396,12 @@ const ReportsPage = () => {
                  </button>
                </div>
             </div>
-            {(startDate || endDate || selectedMovie) && (
+                         {(startDate || endDate || selectedMovie) && (
                <div className="text-sm text-gray-600">
                  Found {filteredInvoices.length} invoices
                  {startDate && endDate && ` between ${new Date(startDate).toLocaleDateString()} and ${new Date(endDate).toLocaleDateString()}`}
                 {selectedMovie && ` for client "${selectedMovie}"`}
-                {!startDate && !endDate && selectedMovie && ` (all dates)`}
+                 {!startDate && !endDate && selectedMovie && ` (all dates)`}
                </div>
              )}
           </div>
