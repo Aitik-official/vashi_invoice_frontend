@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useLayoutEffect, useEffect } from 'react';
 import Link from 'next/link';
 import { DISPLAY_NAMES } from '../../components/InvoicePreview';
 import { generateStandardizedPDF } from '../../utils/pdfGenerator';
@@ -132,6 +132,63 @@ function CreateInvoiceDirectPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const [isGeneratingInvoiceNo, setIsGeneratingInvoiceNo] = useState(true);
+
+  // Auto-generate invoice number starting from 116
+  useEffect(() => {
+    const generateInvoiceNumber = async () => {
+      try {
+        // Fetch all existing invoices
+        const response = await fetch('/api/proxy?endpoint=/api/invoices');
+        if (!response.ok) {
+          console.error('Failed to fetch invoices for invoice number generation');
+          // Default to 116 if fetch fails
+          setInvoiceData((prev: any) => ({ ...prev, "In_no": "116" }));
+          setIsGeneratingInvoiceNo(false);
+          return;
+        }
+
+        const allInvoices = await response.json();
+        
+        // Extract all invoice numbers and find the maximum starting from 116
+        // Only consider invoice numbers >= 116 (ignore older invoices)
+        let maxInvoiceNo = 115; // Start from 115, so next will be 116
+        
+        if (Array.isArray(allInvoices)) {
+          allInvoices.forEach((inv: any) => {
+            const invoiceNo = inv.data?.["In_no"] || inv.data?.invoiceNo;
+            if (invoiceNo) {
+              // Try to parse as number
+              const num = parseInt(String(invoiceNo).trim(), 10);
+              // Only consider numbers >= 116 (ignore older invoice numbers)
+              if (!isNaN(num) && num >= 116 && num > maxInvoiceNo) {
+                maxInvoiceNo = num;
+              }
+            }
+          });
+        }
+
+        // Generate next invoice number (will be 116 if no invoices >= 116 exist)
+        const nextInvoiceNo = (maxInvoiceNo + 1).toString();
+        
+        // Always set the generated invoice number on page load (this is a new invoice page)
+        setInvoiceData((prev: any) => ({ ...prev, "In_no": nextInvoiceNo }));
+      } catch (error) {
+        console.error('Error generating invoice number:', error);
+        // Default to 116 if error occurs
+        setInvoiceData((prev: any) => {
+          if (!prev["In_no"] || prev["In_no"].trim() === "") {
+            return { ...prev, "In_no": "116" };
+          }
+          return prev;
+        });
+      } finally {
+        setIsGeneratingInvoiceNo(false);
+      }
+    };
+
+    generateInvoiceNumber();
+  }, []); // Run only once on component mount
 
   // Helper function to parse decimal amount and split into Rs and Paise
   const parseDecimalAmount = (amountStr: string): { rs: string, paise: string } => {
@@ -621,15 +678,40 @@ function CreateInvoiceDirectPage() {
   };
 
   const saveInvoice = async () => {
-    // If no invoice number, skip saving but still allow PDF download
-    if (!invoiceData["In_no"] && !invoiceData.invoiceNo) {
-      console.log('No invoice number provided, skipping save to database');
-      return;
-    }
-
     setIsSaving(true);
     try {
-      const invoiceNo = invoiceData["In_no"] || invoiceData.invoiceNo;
+      // Auto-generate invoice number if missing
+      let invoiceNo = invoiceData["In_no"] || invoiceData.invoiceNo;
+      
+      if (!invoiceNo || invoiceNo.trim() === '') {
+        // Fetch all invoices to get the next number
+        const response = await fetch('/api/proxy?endpoint=/api/invoices');
+        if (response.ok) {
+          const allInvoices = await response.json();
+          let maxInvoiceNo = 115; // Start from 115, so next will be 116
+          
+          if (Array.isArray(allInvoices)) {
+            allInvoices.forEach((inv: any) => {
+              const existingNo = inv.data?.["In_no"] || inv.data?.invoiceNo;
+              if (existingNo) {
+                const num = parseInt(String(existingNo).trim(), 10);
+                // Only consider numbers >= 116 (ignore older invoice numbers)
+                if (!isNaN(num) && num >= 116 && num > maxInvoiceNo) {
+                  maxInvoiceNo = num;
+                }
+              }
+            });
+          }
+          
+          invoiceNo = (maxInvoiceNo + 1).toString();
+          // Update invoiceData with the generated number
+          setInvoiceData((prev: any) => ({ ...prev, "In_no": invoiceNo }));
+        } else {
+          // Fallback to 116 if fetch fails
+          invoiceNo = "116";
+          setInvoiceData((prev: any) => ({ ...prev, "In_no": invoiceNo }));
+        }
+      }
 
       // Calculate and attach all summary fields before saving
       const totalSales = calculateTotalSales();
@@ -799,8 +881,8 @@ function CreateInvoiceDirectPage() {
         {/* Editable Invoice Preview - Also used for PDF generation */}
         <div
           ref={previewRef}
-          className="w-[800px] mx-auto bg-white shadow-lg text-black"
-          style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
+          className="w-[900px] mx-auto bg-white shadow-lg text-black"
+          style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '900px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
           id="invoice-preview-container"
         >
           {/* Header - Single Image aligned with inner content width */}

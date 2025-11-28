@@ -507,8 +507,8 @@ const InvoicePreview = ({ data = {} as InvoiceData, showDownloadButton = true, i
       )}
       <div
         ref={previewRef}
-        className="w-[800px] mx-auto bg-white shadow-lg text-black"
-        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
+        className="w-[900px] mx-auto bg-white shadow-lg text-black"
+        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '900px', minHeight: '1130px', boxSizing: 'border-box', padding: 0 }}
       >
         {/* Header - Single Image replacing logo and company details - aligned with inner content width */}
         <div style={{ width: '100%', margin: 0, padding: '1rem 1rem 0 1rem', boxSizing: 'border-box' }}>
