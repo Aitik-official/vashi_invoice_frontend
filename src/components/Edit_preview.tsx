@@ -423,8 +423,8 @@ const EditPreview = ({ data = defaultInvoice, onChange, showDownloadButton = tru
       )}
       <div
         ref={previewRef}
-        className="w-[800px] mx-auto bg-white shadow-2xl rounded-md text-black font-sans border border-black"
-        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '800px', minHeight: '1100px', boxSizing: 'border-box', position: 'relative', overflowY: 'auto', overflowX: 'hidden', marginTop: 32, marginBottom: 32, padding: 0 }}
+        className="w-[900px] mx-auto bg-white shadow-2xl rounded-md text-black font-sans border border-black"
+        style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#000', background: '#fff', width: '900px', minHeight: '1130px', boxSizing: 'border-box', position: 'relative', overflowY: 'auto', overflowX: 'hidden', marginTop: 32, marginBottom: 32, padding: 0 }}
       >
         {/* Header - Single Image replacing logo and company details - aligned with inner content width */}
         <div style={{ width: '100%', margin: 0, padding: '1rem 1rem 0 1rem', boxSizing: 'border-box' }}>

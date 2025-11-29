@@ -13,8 +13,8 @@ export const PDF_GENERATION_CONFIG = {
     logging: false,
     removeContainer: true,
     imageTimeout: 10000, // Increased timeout for better reliability
-    width: 800, // Fixed width for consistency
-    height: 1130, // Fixed height for consistency
+    width: 900, // Fixed width for consistency (matches invoice preview width)
+    height: 1130, // Fixed height for consistency (matches invoice preview minHeight)
   },
   
   // Image settings - PNG for better quality, consistent file size

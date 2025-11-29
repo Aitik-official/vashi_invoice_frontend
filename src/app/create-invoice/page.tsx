@@ -135,6 +135,7 @@ function CreateInvoiceDirectPage() {
   const [isGeneratingInvoiceNo, setIsGeneratingInvoiceNo] = useState(true);
 
   // Auto-generate invoice number starting from 116
+  // Handles both English and Marathi invoice numbers
   useEffect(() => {
     const generateInvoiceNumber = async () => {
       try {
@@ -152,16 +153,18 @@ function CreateInvoiceDirectPage() {
         
         // Extract all invoice numbers and find the maximum starting from 116
         // Only consider invoice numbers >= 116 (ignore older invoices)
+        // Use parseMarathiNumber to handle both English and Marathi digits
         let maxInvoiceNo = 115; // Start from 115, so next will be 116
         
         if (Array.isArray(allInvoices)) {
           allInvoices.forEach((inv: any) => {
             const invoiceNo = inv.data?.["In_no"] || inv.data?.invoiceNo;
             if (invoiceNo) {
-              // Try to parse as number
-              const num = parseInt(String(invoiceNo).trim(), 10);
+              // Use parseMarathiNumber to convert Marathi digits to English and parse
+              // This handles both "116" and "११६" formats
+              const num = parseMarathiNumber(String(invoiceNo).trim());
               // Only consider numbers >= 116 (ignore older invoice numbers)
-              if (!isNaN(num) && num >= 116 && num > maxInvoiceNo) {
+              if (num >= 116 && num > maxInvoiceNo) {
                 maxInvoiceNo = num;
               }
             }
@@ -685,6 +688,7 @@ function CreateInvoiceDirectPage() {
       
       if (!invoiceNo || invoiceNo.trim() === '') {
         // Fetch all invoices to get the next number
+        // Handles both English and Marathi invoice numbers
         const response = await fetch('/api/proxy?endpoint=/api/invoices');
         if (response.ok) {
           const allInvoices = await response.json();
@@ -694,9 +698,11 @@ function CreateInvoiceDirectPage() {
             allInvoices.forEach((inv: any) => {
               const existingNo = inv.data?.["In_no"] || inv.data?.invoiceNo;
               if (existingNo) {
-                const num = parseInt(String(existingNo).trim(), 10);
+                // Use parseMarathiNumber to convert Marathi digits to English and parse
+                // This handles both "116" and "११६" formats
+                const num = parseMarathiNumber(String(existingNo).trim());
                 // Only consider numbers >= 116 (ignore older invoice numbers)
-                if (!isNaN(num) && num >= 116 && num > maxInvoiceNo) {
+                if (num >= 116 && num > maxInvoiceNo) {
                   maxInvoiceNo = num;
                 }
               }
