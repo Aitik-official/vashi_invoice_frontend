@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Dashboard from '../components/Dashboard';
 import Login from '../components/Login';
 
@@ -8,7 +8,7 @@ const SESSION_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
 export default function HomePage() {
   const [auth, setAuth] = useState(false);
 
-  const checkSession = () => {
+  const checkSession = useCallback(() => {
     if (typeof window !== "undefined") {
       const loginTimestamp = localStorage.getItem("loginTimestamp");
       const remembered = localStorage.getItem("rememberMe");
@@ -38,7 +38,7 @@ export default function HomePage() {
       }
     }
     return false;
-  };
+  }, []);
 
   useEffect(() => {
     // Only run on client side
@@ -79,7 +79,7 @@ export default function HomePage() {
         }
       });
     };
-  }, []);
+  }, [checkSession]);
 
   const handleLogin = () => {
     if (typeof window !== "undefined") {
