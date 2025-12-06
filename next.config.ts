@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import webpack from "webpack";
 
 const nextConfig: NextConfig = {
+  turbopack: {},
   webpack: (config, { isServer }) => {
     // Exclude Node.js modules from client-side bundle
     if (!isServer) {
