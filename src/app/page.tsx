@@ -41,6 +41,9 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === "undefined") return;
+    
     checkSession();
     
     // Check session every minute
@@ -55,19 +58,25 @@ export default function HomePage() {
     const handleActivity = () => {
       if (!checkSession()) {
         activityEvents.forEach(event => {
-          document.removeEventListener(event, handleActivity);
+          if (typeof document !== "undefined") {
+            document.removeEventListener(event, handleActivity);
+          }
         });
       }
     };
 
     activityEvents.forEach(event => {
-      document.addEventListener(event, handleActivity);
+      if (typeof document !== "undefined") {
+        document.addEventListener(event, handleActivity);
+      }
     });
 
     return () => {
       clearInterval(interval);
       activityEvents.forEach(event => {
-        document.removeEventListener(event, handleActivity);
+        if (typeof document !== "undefined") {
+          document.removeEventListener(event, handleActivity);
+        }
       });
     };
   }, []);
