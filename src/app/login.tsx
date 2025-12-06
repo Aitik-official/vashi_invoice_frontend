@@ -12,12 +12,32 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  const SESSION_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+
   useEffect(() => {
-    // Check localStorage for remember me
+    // Check if session is still valid
     if (typeof window !== "undefined") {
+      const loginTimestamp = localStorage.getItem("loginTimestamp");
       const remembered = localStorage.getItem("rememberMe");
-      if (remembered === "true") {
-        router.replace("/");
+      
+      // If remembered but no timestamp exists (old session), treat as expired
+      if (remembered === "true" && !loginTimestamp) {
+        localStorage.removeItem("rememberMe");
+        return;
+      }
+      
+      if (remembered === "true" && loginTimestamp) {
+        const now = Date.now();
+        const loginTime = parseInt(loginTimestamp, 10);
+        const timeElapsed = now - loginTime;
+        
+        if (timeElapsed < SESSION_TIMEOUT) {
+          router.replace("/");
+        } else {
+          // Session expired, clear storage
+          localStorage.removeItem("rememberMe");
+          localStorage.removeItem("loginTimestamp");
+        }
       }
     }
   }, [router]);
@@ -25,14 +45,19 @@ const LoginPage = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (userid === USERID && password === PASSWORD) {
-      if (remember) {
-        localStorage.setItem("rememberMe", "true");
-      } else {
-        localStorage.removeItem("rememberMe");
+      if (typeof window !== "undefined") {
+        // Store login timestamp for session timeout
+        localStorage.setItem("loginTimestamp", Date.now().toString());
+        
+        if (remember) {
+          localStorage.setItem("rememberMe", "true");
+        } else {
+          localStorage.removeItem("rememberMe");
+        }
       }
       router.replace("/");
     } else {
-      setError("Invalid userid or password");
+      setError("Server issue");
     }
   };
 

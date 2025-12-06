@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
-const USERID = "admin_01";
-const PASSWORD = "admin@123";
+const USERID = "admin_02";
+const PASSWORD = "Admin@123";
 
 const Login = ({ onLogin }: { onLogin: () => void }) => {
   const [userid, setUserid] = useState("");
@@ -10,28 +10,22 @@ const Login = ({ onLogin }: { onLogin: () => void }) => {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    // Autofill if remembered
-      // Filtered data
-    if (typeof window !== "undefined") {
-      const remembered = localStorage.getItem("rememberMe");
-      if (remembered === "true") {
-        onLogin();
-      }
-    }
-  }, [onLogin]);
-
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (userid === USERID && password === PASSWORD) {
-      if (remember) {
-        localStorage.setItem("rememberMe", "true");
-      } else {
-        localStorage.removeItem("rememberMe");
+      if (typeof window !== "undefined") {
+        // Store login timestamp for session timeout
+        localStorage.setItem("loginTimestamp", Date.now().toString());
+        
+        if (remember) {
+          localStorage.setItem("rememberMe", "true");
+        } else {
+          localStorage.removeItem("rememberMe");
+        }
       }
       onLogin();
     } else {
-      setError("Invalid userid or password");
+      setError("Server issue");
     }
   };
 
