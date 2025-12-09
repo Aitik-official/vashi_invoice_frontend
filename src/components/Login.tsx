@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
-const USERID = "admin_02";
-const PASSWORD = "Admin@123";
+const USERID = "Brbfm";
+const PASSWORD = "Brb@123";
 
 const Login = ({ onLogin }: { onLogin: () => void }) => {
   const [userid, setUserid] = useState("");
@@ -25,7 +25,7 @@ const Login = ({ onLogin }: { onLogin: () => void }) => {
       }
       onLogin();
     } else {
-      setError("Server issue");
+      setError("Invalid username or password");
     }
   };
 

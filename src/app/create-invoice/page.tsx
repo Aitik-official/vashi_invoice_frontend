@@ -241,10 +241,10 @@ function CreateInvoiceDirectPage() {
         [`empty${idx}_paise`]: paise,
       }));
     } else {
-      setInvoiceData((prev: any) => ({
-        ...prev,
-        [field]: value
-      }));
+    setInvoiceData((prev: any) => ({
+      ...prev,
+      [field]: value
+    }));
     }
   }, []);
 
@@ -770,7 +770,7 @@ function CreateInvoiceDirectPage() {
         netAmount: netBalanceValue,
         grandTotal: netBalanceValue,
       };
-
+      
       const checkResponse = await fetch('/api/proxy?endpoint=/api/invoices');
       const allInvoices = await checkResponse.json();
       
@@ -864,7 +864,7 @@ function CreateInvoiceDirectPage() {
                 </svg>
               </button>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-800">Create Invoice - Direct Entry</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Create Invoice - Direct Entry</h1>
           </div>
           <Link href="/create-invoice-excel">
             <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-lg transition shadow-lg">
@@ -893,7 +893,7 @@ function CreateInvoiceDirectPage() {
         >
           {/* Header - Single Image aligned with inner content width */}
           <div style={{ width: '100%', margin: 0, padding: '1rem 1rem 0 1rem', boxSizing: 'border-box' }}>
-            <img
+            <img 
               src="/inovice_formatting/baban.jpg" 
               alt="Invoice Header" 
               style={{ width: '100%', height: 'auto', display: 'block', margin: 0, padding: 0 }} 
@@ -1020,7 +1020,7 @@ function CreateInvoiceDirectPage() {
                         {/* Net Balance Title - Red, Bold - Increased Size */}
                         <div data-pdf-shift="true" style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc2626', marginBottom: '6px', textAlign: 'center' }}>
                           {DISPLAY_NAMES.netBalance}
-                        </div>
+                    </div>
                         
                         {/* Grand Total Box with Red Circle and Amount */}
                         <div 
@@ -1061,7 +1061,7 @@ function CreateInvoiceDirectPage() {
                               alt="₹" 
                               style={{ width: '20px', height: '20px', objectFit: 'contain' }}
                             />
-                          </div>
+                    </div>
                           
                           {/* Amount Display - Black text, centered, slightly overlapping circle */}
                           <div
@@ -1079,10 +1079,10 @@ function CreateInvoiceDirectPage() {
                             }}
                           >
                             {formatAmount(calculateNetBalance().rs, calculateNetBalance().paise, calculateNetBalance().isNegative)}
-                          </div>
-                        </div>
-                      </div>
+                  </div>
                     </div>
+                    </div>
+                  </div>
                     
                     {/* Total Sales Row */}
                     <div
@@ -1116,8 +1116,8 @@ function CreateInvoiceDirectPage() {
                       <div className="p-2 text-right" style={{ borderColor: '#1f4fb9', gridColumn: '4 / 6', minHeight: '50px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
                         <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                           {formatAmount(calculateNetBalance().rs, calculateNetBalance().paise, calculateNetBalance().isNegative)}
-                        </span>
-                      </div>
+                      </span>
+                    </div>
                     </div>
                   </div>
                 </div>
@@ -1136,7 +1136,7 @@ function CreateInvoiceDirectPage() {
                         <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '24px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>{expense}</div>
                         <div className="p-1 text-right" style={{ borderColor: '#1f4fb9', minHeight: '24px', backgroundColor: '#f2eed3' }}>
                           <EditableSpanWrapper field={`expense${idx}_amount`} style={{ width: '100%', minHeight: '24px' }} />
-                        </div>
+                      </div>
                       </div>
                     );
                   })}
@@ -1146,10 +1146,10 @@ function CreateInvoiceDirectPage() {
                       <div key={`empty-${i}`} className="grid border-b" style={{ borderColor: '#1f4fb9', backgroundColor: '#f2eed3', gridTemplateColumns: '10fr 10fr', fontSize: '16px' }}>
                         <div className="border-r p-1" style={{ borderColor: '#1f4fb9', minHeight: '24px', backgroundColor: '#c1e4ff', textAlign: 'center' }}>
                           <EditableSpanWrapper field={`empty${i}_details`} style={{ width: '100%', minHeight: '24px' }} />
-                        </div>
+                      </div>
                         <div className="p-1 text-right" style={{ borderColor: '#1f4fb9', minHeight: '24px', backgroundColor: '#f2eed3' }}>
                           <EditableSpanWrapper field={`empty${i}_amount`} style={{ width: '100%', minHeight: '24px' }} />
-                        </div>
+                      </div>
                       </div>
                     );
                   })}
@@ -1171,9 +1171,9 @@ function CreateInvoiceDirectPage() {
                   <div className="border-b-2" style={{ borderColor: '#1f4fb9', width: '100%', marginTop: '8px' }}></div>
                   {/* Container for Errors and omissions and Thanks text */}
                   <div style={{ backgroundColor: '#f2eed3', width: '100%', padding: '8px 0' }}>
-                    {/* Errors and omissions text below Total Expenses */}
+                  {/* Errors and omissions text below Total Expenses */}
                     <div className="italic" style={{ textAlign: 'center', padding: '4px 8px', color: '#4821c9', fontSize: '14px' }}>
-                      {DISPLAY_NAMES.errorsOmissions}
+                    {DISPLAY_NAMES.errorsOmissions}
                     </div>
                     {/* Thanks text below Errors and omissions */}
                     <div style={{ textAlign: 'center', padding: '4px 8px', fontWeight: 'bold', fontSize: '18px', color: '#dc2626' }}>

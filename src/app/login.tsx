@@ -57,7 +57,7 @@ const LoginPage = () => {
       }
       router.replace("/");
     } else {
-      setError("Server issue");
+      setError("Invalid username or password");
     }
   };
 
